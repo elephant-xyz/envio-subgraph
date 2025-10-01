@@ -821,6 +821,8 @@ export async function processPropertyImprovementData(context: any, metadata: any
 
   const rels = await Promise.all(relPromises);
   const improvementCids: string[] = [];
+  let resolvedPropertyId: string | undefined;
+
   for (const r of rels) {
     if (r.error) {
       context.log.warn(`Failed to fetch improvement relationship`, { cid: r.cid, error: r.error.message });
@@ -828,7 +830,22 @@ export async function processPropertyImprovementData(context: any, metadata: any
     }
     const toCid = r.data.to?.["/"];
     if (toCid) improvementCids.push(toCid);
+
+    // Try to resolve property from 'from' side (property_has_property_improvement: from=property, to=improvement)
+    const fromCid = r.data.from?.["/"];
+    if (!resolvedPropertyId && fromCid) {
+      try {
+        const propData = await context.effect(getPropertyData, fromCid);
+        const propertyEntity = createPropertyEntity(fromCid, propData);
+        context.Property.set(propertyEntity);
+        resolvedPropertyId = fromCid;
+      } catch (e) {
+        context.log.warn(`Failed to fetch property data for improvement relationship`, { fromCid, error: (e as Error).message });
+      }
+    }
   }
+
+  const effectivePropertyId = resolvedPropertyId || mainEntityId;
 
   const dataPromises: Promise<any>[] = improvementCids.map((c) =>
     context.effect(getPropertyImprovementData, c)
@@ -861,7 +878,7 @@ export async function processPropertyImprovementData(context: any, metadata: any
       source_http_request_body: r.data.source_http_request_body || undefined,
       source_http_request_json: r.data.source_http_request_json || undefined,
       file_id: r.data.file_id || undefined,
-      property_id: mainEntityId,
+      property_id: effectivePropertyId,
     };
     context.PropertyImprovement.set(pi);
   }
