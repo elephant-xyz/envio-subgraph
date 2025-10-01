@@ -17,7 +17,7 @@ To create a new deployment in Envio:
      ```bash
       # Envio Configuration
       ENVIO_API_TOKEN="your-api-token-from-envio-dashboard"
-      
+       
       # Blockchain Configuration
       ENVIO_START_BLOCK="START_BLOCK" with the latest block number
       ENVIO_CONTRACT_ADDRESS="0x525E59e4DE2B51f52B9e30745a513E407652AB7c"
