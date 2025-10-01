@@ -5,6 +5,10 @@ import { S } from "envio";
 export const ipfsMetadataSchema = S.schema({
   label: S.string,
   relationships: S.optional(S.schema({
+    // Property Improvement relationships
+    property_has_property_improvement: S.optional(S.array(S.schema({
+      "/": S.string
+    }))),
     property_has_structure: S.optional(S.schema({
       "/": S.string
     })),
@@ -161,6 +165,27 @@ export const propertySchema = S.schema({
 export const ipfsFactSheetSchema = S.schema({
   ipfs_url: S.optional(S.string),
   full_generation_command: S.optional(S.string),
+});
+
+// Property Improvement Data Schema (best-effort)
+export const propertyImprovementSchema = S.schema({
+  request_identifier: S.optional(S.string),
+  description: S.optional(S.string),
+  improvement_type: S.optional(S.string),
+  permit_number: S.optional(S.string),
+  permit_status: S.optional(S.string),
+  permit_issue_date: S.optional(S.string),
+  permit_expiration_date: S.optional(S.string),
+  contractor_name: S.optional(S.string),
+  contractor_license: S.optional(S.string),
+  estimated_cost_amount: S.optional(S.number),
+  completion_date: S.optional(S.string),
+  source_http_request_method: S.optional(S.string),
+  source_http_request_url: S.optional(S.string),
+  source_http_request_headers_json: S.optional(S.string),
+  source_http_request_body: S.optional(S.string),
+  source_http_request_json: S.optional(S.string),
+  file_id: S.optional(S.string),
 });
 
 // Lot Data Schema
@@ -321,6 +346,7 @@ export type StructureData = S.Infer<typeof structureSchema>;
 export type AddressData = S.Infer<typeof addressSchema>;
 export type PropertyData = S.Infer<typeof propertySchema>;
 export type IpfsFactSheetData = S.Infer<typeof ipfsFactSheetSchema>;
+export type PropertyImprovementData = S.Infer<typeof propertyImprovementSchema>;
 export type LotData = S.Infer<typeof lotDataSchema>;
 export type SalesHistoryData = S.Infer<typeof salesHistorySchema>;
 export type TaxData = S.Infer<typeof taxSchema>;

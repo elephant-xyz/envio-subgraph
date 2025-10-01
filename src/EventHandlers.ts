@@ -13,7 +13,7 @@ import {
 } from "generated";
 
 import { bytes32ToCID, getIpfsMetadata, getPropertyData } from "./utils/ipfs";
-import { getAllowedSubmitters, processCountyData } from "./utils/eventHelpers";
+import { getAllowedSubmitters, processCountyData, processPropertyImprovementData } from "./utils/eventHelpers";
 
 // Get allowed submitters from environment variables - this will crash if none found
 const allowedSubmitters = getAllowedSubmitters();
@@ -228,28 +228,39 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
         }
       }
 
+    } else if (metadata.label === "Property Improvement") {
+      // For Property Improvement, we don't require parcel identifier. Use propertyHash as main ID.
+      const mainEntityIdPI = propertyId;
+      await processPropertyImprovementData(context, metadata, mainEntityIdPI);
     } else if (metadata.label === "Seed") {
       // Skip Seed processing - only process County labels
       return;
     }
 
     // Skip if no parcel_identifier found - only process County events with parcel identifiers
+    // If not County, allow mainEntityId to be propertyId
     if (!parcelIdentifier) {
-      context.log.info(`Skipping DataSubmitted - no parcel_identifier found`, {
-        propertyHash: event.params.propertyHash,
-        cid,
-        metadataLabel: metadata.label
-      });
-      return;
+      if (metadata.label !== "Property Improvement") {
+        context.log.info(`Skipping DataSubmitted - no parcel_identifier found`, {
+          propertyHash: event.params.propertyHash,
+          cid,
+          metadataLabel: metadata.label
+        });
+        return;
+      }
     }
 
     // Use parcel_identifier as the main entity ID only
-    const mainEntityId = parcelIdentifier;
-    const idSource = "parcel_identifier";
+    const mainEntityId = parcelIdentifier || propertyId;
+    const idSource = parcelIdentifier ? "parcel_identifier" : "propertyHash";
 
     // Check if entity exists
     let existingEntityDS: DataSubmittedWithLabel | undefined;
-    existingEntityDS = await context.DataSubmittedWithLabel.get(parcelIdentifier);
+    if (parcelIdentifier) {
+      existingEntityDS = await context.DataSubmittedWithLabel.get(parcelIdentifier);
+    } else {
+      existingEntityDS = await context.DataSubmittedWithLabel.get(propertyId);
+    }
 
     // Update or create the main property entity
     const labelEntity: DataSubmittedWithLabel = {

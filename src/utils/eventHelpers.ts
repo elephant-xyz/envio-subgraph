@@ -14,8 +14,9 @@ import {
   Layout,
   File,
   Deed,
+  PropertyImprovement,
 } from "generated";
-import { bytes32ToCID, getIpfsMetadata, getRelationshipData, getStructureData, getAddressData, getPropertyData, getIpfsFactSheetData, getLotData, getSalesHistoryData, getTaxData, getUtilityData, getFloodStormData, getPersonData, getCompanyData, getDeedData,getFileData,getLayoutData } from "./ipfs";
+import { bytes32ToCID, getIpfsMetadata, getRelationshipData, getStructureData, getAddressData, getPropertyData, getIpfsFactSheetData, getLotData, getSalesHistoryData, getTaxData, getUtilityData, getFloodStormData, getPersonData, getCompanyData, getDeedData,getFileData,getLayoutData, getPropertyImprovementData } from "./ipfs";
 
 // Function to get all wallet addresses from environment variables
 export function getAllowedSubmitters(): string[] {
@@ -800,4 +801,68 @@ export async function processCountyData(context: any, metadata: any, cid: string
     fileEntities,
     deedEntities
   };
+}
+
+// Process Property Improvement via property_has_property_improvement
+export async function processPropertyImprovementData(context: any, metadata: any, mainEntityId: string) {
+  const improvementRefs = metadata.relationships?.property_has_property_improvement || [];
+  const relPromises: Promise<any>[] = [];
+
+  for (const ref of improvementRefs) {
+    const relCid = ref?.["/"];
+    if (relCid) {
+      relPromises.push(
+        context.effect(getRelationshipData, relCid)
+          .then((data: any) => ({ type: 'improvement_rel', data, cid: relCid }))
+          .catch((error: any) => ({ type: 'improvement_rel', error, cid: relCid }))
+      );
+    }
+  }
+
+  const rels = await Promise.all(relPromises);
+  const improvementCids: string[] = [];
+  for (const r of rels) {
+    if (r.error) {
+      context.log.warn(`Failed to fetch improvement relationship`, { cid: r.cid, error: r.error.message });
+      continue;
+    }
+    const toCid = r.data.to?.["/"];
+    if (toCid) improvementCids.push(toCid);
+  }
+
+  const dataPromises: Promise<any>[] = improvementCids.map((c) =>
+    context.effect(getPropertyImprovementData, c)
+      .then((data: any) => ({ cid: c, data }))
+      .catch((error: any) => ({ cid: c, error }))
+  );
+
+  const results = await Promise.all(dataPromises);
+  for (const r of results) {
+    if (r.error) {
+      context.log.warn(`Failed to fetch improvement data`, { cid: r.cid, error: r.error.message });
+      continue;
+    }
+    const pi: PropertyImprovement = {
+      id: r.cid,
+      request_identifier: r.data.request_identifier || undefined,
+      description: r.data.description || undefined,
+      improvement_type: r.data.improvement_type || undefined,
+      permit_number: r.data.permit_number || undefined,
+      permit_status: r.data.permit_status || undefined,
+      permit_issue_date: r.data.permit_issue_date || undefined,
+      permit_expiration_date: r.data.permit_expiration_date || undefined,
+      contractor_name: r.data.contractor_name || undefined,
+      contractor_license: r.data.contractor_license || undefined,
+      estimated_cost_amount: r.data.estimated_cost_amount || undefined,
+      completion_date: r.data.completion_date || undefined,
+      source_http_request_method: r.data.source_http_request_method || undefined,
+      source_http_request_url: r.data.source_http_request_url || undefined,
+      source_http_request_headers_json: r.data.source_http_request_headers_json || undefined,
+      source_http_request_body: r.data.source_http_request_body || undefined,
+      source_http_request_json: r.data.source_http_request_json || undefined,
+      file_id: r.data.file_id || undefined,
+      property_id: mainEntityId,
+    };
+    context.PropertyImprovement.set(pi);
+  }
 }

@@ -276,6 +276,30 @@ type Deed {
   files: [File!]! @derivedFrom(field: "deed_id")
 }
 
+
+
+type PropertyImprovement {
+  id: ID!
+  request_identifier: String
+  description: String
+  improvement_type: String
+  permit_number: String
+  permit_status: String
+  permit_issue_date: String
+  permit_expiration_date: String
+  contractor_name: String
+  contractor_license: String
+  estimated_cost_amount: Float
+  completion_date: String
+  source_http_request_method: String
+  source_http_request_url: String
+  source_http_request_headers_json: String
+  source_http_request_body: String
+  source_http_request_json: String
+  file_id: String
+  property_id: String!
+}
+
 type DataSubmittedWithLabel {
   id: ID!
   propertyHash: String!
@@ -298,4 +322,5 @@ type DataSubmittedWithLabel {
   companies: [Company!]! @derivedFrom(field: "property_id")
   layouts: [Layout!]! @derivedFrom(field: "property_id")
   files: [File!]! @derivedFrom(field: "property_id")
+  property_improvements: [PropertyImprovement!]! @derivedFrom(field: "property_id")
 }
