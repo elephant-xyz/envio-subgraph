@@ -845,7 +845,31 @@ export async function processPropertyImprovementData(context: any, metadata: any
     }
   }
 
+  // If we couldn't resolve a property from the relationship, create a minimal stub using mainEntityId
   const effectivePropertyId = resolvedPropertyId || mainEntityId;
+  if (!resolvedPropertyId) {
+    const existing = await context.Property.get(effectivePropertyId);
+    if (!existing) {
+      const stub: Property = {
+        id: effectivePropertyId,
+        property_type: undefined,
+        property_structure_built_year: undefined,
+        property_effective_built_year: undefined,
+        parcel_identifier: undefined,
+        area_under_air: undefined,
+        historic_designation: undefined,
+        livable_floor_area: undefined,
+        number_of_units: undefined,
+        number_of_units_type: undefined,
+        property_legal_description_text: undefined,
+        request_identifier: undefined,
+        subdivision: undefined,
+        total_area: undefined,
+        zoning: undefined,
+      };
+      context.Property.set(stub);
+    }
+  }
 
   const dataPromises: Promise<any>[] = improvementCids.map((c) =>
     context.effect(getPropertyImprovementData, c)
@@ -882,4 +906,5 @@ export async function processPropertyImprovementData(context: any, metadata: any
     };
     context.PropertyImprovement.set(pi);
   }
+  return { propertyEntityId: effectivePropertyId };
 }

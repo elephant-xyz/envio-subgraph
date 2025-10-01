@@ -231,7 +231,27 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
     } else if (metadata.label === "Property Improvement") {
       // For Property Improvement, we don't require parcel identifier. Use propertyHash as main ID.
       const mainEntityIdPI = propertyId;
-      await processPropertyImprovementData(context, metadata, mainEntityIdPI);
+      const res = await processPropertyImprovementData(context, metadata, mainEntityIdPI);
+      // Ensure DataSubmittedWithLabel.property_id is set for query joins
+      const labelEntity: DataSubmittedWithLabel = {
+        id: mainEntityIdPI,
+        propertyHash: event.params.propertyHash,
+        submitter: event.params.submitter,
+        dataHash: event.params.dataHash,
+        cid: cid,
+        label: metadata.label,
+        id_source: "propertyHash",
+        structure_id: undefined,
+        address_id: undefined,
+        property_id: res.propertyEntityId,
+        ipfs_id: undefined,
+        lot_id: undefined,
+        utility_id: undefined,
+        flood_storm_information_id: undefined,
+        datetime: BigInt(event.block.timestamp),
+      };
+      context.DataSubmittedWithLabel.set(labelEntity);
+      return;
     } else if (metadata.label === "Seed") {
       // Skip Seed processing - only process County labels
       return;
