@@ -840,6 +840,11 @@ export async function processPropertyImprovementData(context: any, metadata: any
   const improvementRefs = metadata.relationships?.property_has_property_improvement || [];
   const relPromises: Promise<any>[] = [];
 
+  context.log.info("PI: found relationship refs", {
+    count: improvementRefs.length,
+    mainEntityId,
+  });
+
   for (const ref of improvementRefs) {
     const relCid = ref?.["/"];
     if (relCid) {
@@ -864,6 +869,12 @@ export async function processPropertyImprovementData(context: any, metadata: any
     const toCid = r.data.to?.["/"];
     if (toCid) improvementCids.push(toCid);
 
+    context.log.info("PI: relationship resolved", {
+      relationshipCid: r.cid,
+      fromCid: r.data.from?.["/"],
+      toCid: r.data.to?.["/"],
+    });
+
     // Try to resolve property from 'from' side (property_has_property_improvement: from=property, to=improvement)
     const fromCid = r.data.from?.["/"];
     if (!resolvedPropertyId && fromCid) {
@@ -875,6 +886,12 @@ export async function processPropertyImprovementData(context: any, metadata: any
         if (propData?.parcel_identifier) {
           resolvedParcelIdentifier = propData.parcel_identifier;
         }
+
+        context.log.info("PI: resolved property from relationship", {
+          fromCid,
+          resolvedPropertyId,
+          resolvedParcelIdentifier,
+        });
       } catch (e) {
         context.log.warn(`Failed to fetch property data for improvement relationship`, { fromCid, error: (e as Error).message });
       }
@@ -904,6 +921,7 @@ export async function processPropertyImprovementData(context: any, metadata: any
         zoning: undefined,
       };
       context.Property.set(stub);
+      context.log.info("PI: created stub property", { propertyId: effectivePropertyId });
     }
   }
 
@@ -921,6 +939,7 @@ export async function processPropertyImprovementData(context: any, metadata: any
     }
     const pi: PropertyImprovement = createPropertyImprovementEntity(r.cid, r.data, effectivePropertyId);
     context.PropertyImprovement.set(pi);
+    context.log.info("PI: created improvement", { id: pi.id, property_id: pi.property_id });
   }
   return { propertyEntityId: effectivePropertyId };
 }
