@@ -289,6 +289,13 @@ export const personSchema = S.schema({
 export const companySchema = S.schema({
   name: S.optional(S.string),
   request_identifier: S.optional(S.string),
+  // Source HTTP request fields
+  source_http_request_method: S.optional(S.string),
+  source_http_request_url: S.optional(S.string),
+  source_http_request_headers_json: S.optional(S.string),
+  source_http_request_body: S.optional(S.string),
+  source_http_request_json: S.optional(S.string),
+  source_http_request_multi_value_query_string_json: S.optional(S.string),
 });
 
 // Layout Data Schema
@@ -343,6 +350,11 @@ export const deedSchema = S.schema({
   deed_type: S.string,
 });
 
+// Communication Data Schema
+export const communicationSchema = S.schema({
+  email_address: S.optional(S.string),
+  phone_number: S.optional(S.string),
+});
 // Inferred Types
 export type IpfsMetadata = S.Infer<typeof ipfsMetadataSchema>;
 export type RelationshipData = S.Infer<typeof relationshipSchema>;
@@ -358,6 +370,7 @@ export type UtilityData = S.Infer<typeof utilitySchema>;
 export type FloodStormInformationData = S.Infer<typeof floodStormInformationSchema>;
 export type PersonData = S.Infer<typeof personSchema>;
 export type CompanyData = S.Infer<typeof companySchema>;
+export type CommunicationData = S.Infer<typeof communicationSchema>;
 export type LayoutData = S.Infer<typeof layoutSchema>;
 export type FileData = S.Infer<typeof fileSchema>;
 export type DeedData = S.Infer<typeof deedSchema>;

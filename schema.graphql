@@ -216,7 +216,15 @@ type Company {
   id: ID!
   name: String
   request_identifier: String
+  source_http_request_method: String
+  source_http_request_url: String
+  source_http_request_headers_json: String
+  source_http_request_body: String
+  source_http_request_json: String
+  source_http_request_multi_value_query_string_json: String
   property_id: String!
+  property_improvement_id: String
+  communications: [Communication!]! @derivedFrom(field: "company_id")
 }
 
 type Layout {
@@ -304,6 +312,14 @@ type PropertyImprovement {
   property_cid: String
   property_hash: String
   property_id: String!
+  contractors: [Company!]! @derivedFrom(field: "property_improvement_id")
+}
+
+type Communication {
+  id: ID!
+  email_address: String
+  phone_number: String
+  company_id: String!
 }
 
 type DataSubmittedWithLabel {

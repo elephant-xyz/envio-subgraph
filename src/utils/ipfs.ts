@@ -14,6 +14,7 @@ import {
     floodStormInformationSchema,
     personSchema,
     companySchema,
+    communicationSchema,
     layoutSchema,
     fileSchema,
     deedSchema,
@@ -31,6 +32,7 @@ import {
     type FloodStormInformationData,
     type PersonData,
     type CompanyData,
+    type CommunicationData,
     type LayoutData,
     type FileData,
     type DeedData
@@ -749,6 +751,12 @@ export const getCompanyData = experimental_createEffect(
             (data: any) => ({
                 name: data.name || undefined,
                 request_identifier: data.request_identifier || undefined,
+                source_http_request_method: data.source_http_request?.method || undefined,
+                source_http_request_url: data.source_http_request?.url || undefined,
+                source_http_request_headers_json: data.source_http_request?.headers ? JSON.stringify(data.source_http_request.headers) : undefined,
+                source_http_request_body: data.source_http_request?.body || undefined,
+                source_http_request_json: data.source_http_request?.json ? JSON.stringify(data.source_http_request.json) : undefined,
+                source_http_request_multi_value_query_string_json: data.source_http_request?.multiValueQueryString ? JSON.stringify(data.source_http_request.multiValueQueryString) : undefined,
             })
         );
     }
