@@ -268,6 +268,7 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
       return;
     }
 
+    // 
     // Skip if no parcel_identifier found - only process County events with parcel identifiers
     // If not County, allow mainEntityId to be propertyId
     if (!parcelIdentifier) {
