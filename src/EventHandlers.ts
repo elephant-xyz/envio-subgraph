@@ -242,15 +242,16 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
       // For Property Improvement, we don't require parcel identifier. Use propertyHash as main ID.
       const mainEntityIdPI = propertyId;
       const res = await processPropertyImprovementData(context, metadata, mainEntityIdPI);
+      const piId = res.permitNumberNormalized || mainEntityIdPI;
       // Ensure DataSubmittedWithLabel.property_id is set for query joins
       const labelEntity: DataSubmittedWithLabel = {
-        id: mainEntityIdPI,
+        id: piId,
         propertyHash: event.params.propertyHash,
         submitter: event.params.submitter,
         dataHash: event.params.dataHash,
         cid: cid,
         label: metadata.label,
-        id_source: "propertyHash",
+        id_source: "permit_number",
         structure_id: undefined,
         address_id: undefined,
         property_id: res.propertyEntityId,

@@ -932,14 +932,25 @@ export async function processPropertyImprovementData(context: any, metadata: any
   );
 
   const results = await Promise.all(dataPromises);
+  // Determine a normalized permit number to serve as a stable PI identifier
+  let permitNumberNormalized: string | undefined;
+  const normalizePermit = (p: any): string | undefined => {
+    if (!p) return undefined;
+    const s = String(p).trim();
+    if (!s) return undefined;
+    return s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  };
   for (const r of results) {
     if (r.error) {
       context.log.warn(`Failed to fetch improvement data`, { cid: r.cid, error: r.error.message });
       continue;
     }
+    if (!permitNumberNormalized) {
+      permitNumberNormalized = normalizePermit(r.data?.permit_number);
+    }
     const pi: PropertyImprovement = createPropertyImprovementEntity(r.cid, r.data, effectivePropertyId);
     context.PropertyImprovement.set(pi);
     context.log.info("PI: created improvement", { id: pi.id, property_id: pi.property_id });
   }
-  return { propertyEntityId: effectivePropertyId };
+  return { propertyEntityId: effectivePropertyId, permitNumberNormalized };
 }
