@@ -822,6 +822,7 @@ export async function processPropertyImprovementData(context: any, metadata: any
   const rels = await Promise.all(relPromises);
   const improvementCids: string[] = [];
   let resolvedPropertyId: string | undefined;
+  let resolvedParcelIdentifier: string | undefined;
 
   for (const r of rels) {
     if (r.error) {
@@ -839,14 +840,17 @@ export async function processPropertyImprovementData(context: any, metadata: any
         const propertyEntity = createPropertyEntity(fromCid, propData);
         context.Property.set(propertyEntity);
         resolvedPropertyId = fromCid;
+        if (propData?.parcel_identifier) {
+          resolvedParcelIdentifier = propData.parcel_identifier;
+        }
       } catch (e) {
         context.log.warn(`Failed to fetch property data for improvement relationship`, { fromCid, error: (e as Error).message });
       }
     }
   }
 
-  // If we couldn't resolve a property from the relationship, create a minimal stub using mainEntityId
-  const effectivePropertyId = resolvedPropertyId || mainEntityId;
+  // Prefer parcel_identifier (County-scoped id), then property CID, fallback to propertyHash
+  const effectivePropertyId = resolvedParcelIdentifier || resolvedPropertyId || mainEntityId;
   if (!resolvedPropertyId) {
     const existing = await context.Property.get(effectivePropertyId);
     if (!existing) {
