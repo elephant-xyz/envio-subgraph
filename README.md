@@ -2,6 +2,49 @@
 
 A blockchain indexer built with Envio that processes property data events from smart contracts and fetches detailed property information from IPFS, including structure, address, and property details.
 
+## Creating a New Deployment
+
+To create a new deployment in Envio:
+
+1. **Open Envio Dashboard**: Go to [Envio](https://envio.dev) and select your indexer
+2. **Update Git Settings**:
+   - Open **Settings**
+   - Set your desired branch name in **Git Release Branch** (e.g., `production`, `staging`)
+   - Click **Update**
+3. **Set Environment Variables**:
+   - Go to **Environment Variables**
+   - Set Env variables
+     ```bash
+      # Envio Configuration
+      ENVIO_API_TOKEN="your-api-token-from-envio-dashboard"
+      
+      # Blockchain Configuration
+      ENVIO_START_BLOCK="START_BLOCK" with the latest block number
+      ENVIO_CONTRACT_ADDRESS="0x525E59e4DE2B51f52B9e30745a513E407652AB7c"
+      
+      # Wallet Address Allowlist (add your wallet addresses)
+      ENVIO_WALLET_ADDRESS="0x2C810CD120eEb840a7012b77a2B4F19889Ecf65C"
+      # Add more wallets with numbered suffixes if needed:
+      # ENVIO_WALLET_ADDRESS_2="0xYourSecondWalletAddress"
+      # ENVIO_WALLET_ADDRESS_3="0xYourThirdWalletAddress"
+     ```
+4. **Create and Push Branch**:
+   - Create a new branch from `main` with the same name you set in Git Release Branch:
+     ```bash
+     git checkout main
+     git pull origin main
+     git checkout -b production  # or your branch name
+     git push origin production
+     ```
+   - Push any changes to trigger deployment:
+     ```bash
+     git commit --allow-empty -m "trigger deployment"
+     git push origin production
+     ```
+5. **Monitor Deployment**:
+   - Return to Envio dashboard
+   - You'll see the deployment has started in your subgraph
+
 ## Features
 
 - **Real-time Event Processing**: Monitors `DataSubmitted` and `DataGroupHeartBeat` events
@@ -29,8 +72,8 @@ A blockchain indexer built with Envio that processes property data events from s
 ### 2. Clone and Setup
 
 ```bash
-git clone <your-repo-url>
-cd envio-graph2
+git clone git@github.com:elephant-xyz/envio-subgraph.git
+cd envio-subgraph
 pnpm install
 ```
 
@@ -43,7 +86,7 @@ Create a `.env` file in the root directory:
 ENVIO_API_TOKEN="your-api-token-from-envio-dashboard"
 
 # Blockchain Configuration
-ENVIO_START_BLOCK="76322351"
+ENVIO_START_BLOCK="START_BLOCK"
 ENVIO_CONTRACT_ADDRESS="0x525E59e4DE2B51f52B9e30745a513E407652AB7c"
 
 # Wallet Address Allowlist (add your wallet addresses)
@@ -250,4 +293,3 @@ pnpm deploy
 - [Envio Documentation](https://docs.envio.dev) - Complete guide on all Envio indexer features
 - [Envio Discord](https://discord.gg/envio)
 - [GitHub Issues](./issues) for project-specific problems
-
