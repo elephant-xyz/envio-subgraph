@@ -979,6 +979,11 @@ export async function processPropertyImprovementData(context: any, metadata: any
       if (!contractorRelCid) continue;
       try {
         const rel = await context.effect(getRelationshipData, contractorRelCid);
+        // Ensure this contractor relationship belongs to this specific improvement
+        const contractorFromCid = rel.from?.["/"];
+        if (contractorFromCid && contractorFromCid !== r.cid) {
+          continue;
+        }
         const contractorCid = rel.to?.["/"];
         if (!contractorCid) continue;
 
@@ -1006,6 +1011,11 @@ export async function processPropertyImprovementData(context: any, metadata: any
           if (!commRelCid) continue;
           try {
             const commRel = await context.effect(getRelationshipData, commRelCid);
+            // Ensure communication belongs to this specific contractor company
+            const commFromCid = commRel.from?.["/"];
+            if (commFromCid && commFromCid !== contractorCompany.id) {
+              continue;
+            }
             const commCid = commRel.to?.["/"];
             if (!commCid) continue;
             const commData = await context.effect(getCommunicationData, commCid);
