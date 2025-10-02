@@ -13,7 +13,7 @@ To create a new deployment in Envio:
    - Click **Update** 
 3. **Set Environment Variables**:
    - Go to **Environment Variables**  
-   - Set Env variables
+   - Set Env variables 
      ```bash
       # Envio Configuration
       ENVIO_API_TOKEN="your-api-token-from-envio-dashboard"
@@ -292,4 +292,4 @@ pnpm deploy
 
 - [Envio Documentation](https://docs.envio.dev) - Complete guide on all Envio indexer features
 - [Envio Discord](https://discord.gg/envio)
-- [GitHub Issues](./issues) for project-specific problems
+- [GitHub Issues](./issues) for project-specific problems  
