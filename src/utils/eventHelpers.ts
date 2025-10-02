@@ -340,6 +340,38 @@ export function createDeedEntity(deedId: string, deedData: any, salesHistoryId?:
   };
 }
 
+// Helper to create PropertyImprovement entity
+export function createPropertyImprovementEntity(
+  improvementId: string,
+  improvementData: any,
+  propertyId: string
+): PropertyImprovement {
+  return {
+    id: improvementId,
+    request_identifier: improvementData.request_identifier || undefined,
+    description: improvementData.description || undefined,
+    improvement_type: improvementData.improvement_type || undefined,
+    improvement_status: improvementData.improvement_status || undefined,
+    contractor_type: improvementData.contractor_type || undefined,
+    permit_number: improvementData.permit_number || undefined,
+    permit_status: improvementData.permit_status || undefined,
+    permit_required: improvementData.permit_required || undefined,
+    permit_issue_date: improvementData.permit_issue_date || undefined,
+    permit_expiration_date: improvementData.permit_expiration_date || undefined,
+    contractor_name: improvementData.contractor_name || undefined,
+    contractor_license: improvementData.contractor_license || undefined,
+    estimated_cost_amount: improvementData.estimated_cost_amount || undefined,
+    completion_date: improvementData.completion_date || undefined,
+    source_http_request_method: improvementData.source_http_request_method || undefined,
+    source_http_request_url: improvementData.source_http_request_url || undefined,
+    source_http_request_headers_json: improvementData.source_http_request_headers_json || undefined,
+    source_http_request_body: improvementData.source_http_request_body || undefined,
+    source_http_request_json: improvementData.source_http_request_json || undefined,
+    file_id: improvementData.file_id || undefined,
+    property_id: propertyId,
+  };
+}
+
 // Helper to process County data with full parallelism
 export async function processCountyData(context: any, metadata: any, cid: string, propertyEntityId: string) {
   // Initialize entity IDs that will be populated from IPFS data
@@ -887,27 +919,7 @@ export async function processPropertyImprovementData(context: any, metadata: any
       context.log.warn(`Failed to fetch improvement data`, { cid: r.cid, error: r.error.message });
       continue;
     }
-    const pi: PropertyImprovement = {
-      id: r.cid,
-      request_identifier: r.data.request_identifier || undefined,
-      description: r.data.description || undefined,
-      improvement_type: r.data.improvement_type || undefined,
-      permit_number: r.data.permit_number || undefined,
-      permit_status: r.data.permit_status || undefined,
-      permit_issue_date: r.data.permit_issue_date || undefined,
-      permit_expiration_date: r.data.permit_expiration_date || undefined,
-      contractor_name: r.data.contractor_name || undefined,
-      contractor_license: r.data.contractor_license || undefined,
-      estimated_cost_amount: r.data.estimated_cost_amount || undefined,
-      completion_date: r.data.completion_date || undefined,
-      source_http_request_method: r.data.source_http_request_method || undefined,
-      source_http_request_url: r.data.source_http_request_url || undefined,
-      source_http_request_headers_json: r.data.source_http_request_headers_json || undefined,
-      source_http_request_body: r.data.source_http_request_body || undefined,
-      source_http_request_json: r.data.source_http_request_json || undefined,
-      file_id: r.data.file_id || undefined,
-      property_id: effectivePropertyId,
-    };
+    const pi: PropertyImprovement = createPropertyImprovementEntity(r.cid, r.data, effectivePropertyId);
     context.PropertyImprovement.set(pi);
   }
   return { propertyEntityId: effectivePropertyId };

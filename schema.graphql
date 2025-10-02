@@ -283,8 +283,11 @@ type PropertyImprovement {
   request_identifier: String
   description: String
   improvement_type: String
+  improvement_status: String
+  contractor_type: String
   permit_number: String
   permit_status: String
+  permit_required: Boolean
   permit_issue_date: String
   permit_expiration_date: String
   contractor_name: String
