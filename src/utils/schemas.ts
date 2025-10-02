@@ -42,6 +42,13 @@ export const ipfsMetadataSchema = S.schema({
     property_has_file: S.optional(S.array(S.schema({
       "/": S.string
     }))),
+    // New relationships
+    property_improvement_has_contractor: S.optional(S.array(S.schema({
+      "/": S.string
+    }))),
+    company_has_communication: S.optional(S.array(S.schema({
+      "/": S.string
+    }))),
     deed_has_file: S.optional(S.array(S.schema({
       "/": S.string
     }))),

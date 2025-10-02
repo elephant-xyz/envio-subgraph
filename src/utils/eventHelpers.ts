@@ -15,8 +15,9 @@ import {
   File,
   Deed,
   PropertyImprovement,
+  Communication,
 } from "generated";
-import { bytes32ToCID, getIpfsMetadata, getRelationshipData, getStructureData, getAddressData, getPropertyData, getIpfsFactSheetData, getLotData, getSalesHistoryData, getTaxData, getUtilityData, getFloodStormData, getPersonData, getCompanyData, getDeedData,getFileData,getLayoutData, getPropertyImprovementData } from "./ipfs";
+import { bytes32ToCID, getIpfsMetadata, getRelationshipData, getStructureData, getAddressData, getPropertyData, getIpfsFactSheetData, getLotData, getSalesHistoryData, getTaxData, getUtilityData, getFloodStormData, getPersonData, getCompanyData, getDeedData,getFileData,getLayoutData, getPropertyImprovementData, getCommunicationData } from "./ipfs";
 
 // Function to get all wallet addresses from environment variables
 export function getAllowedSubmitters(): string[] {
@@ -271,6 +272,14 @@ export function createCompanyEntity(companyId: string, companyData: any, propert
     id: companyId,
     name: companyData.name || undefined,
     request_identifier: companyData.request_identifier || undefined,
+    // Extended fields (optional)
+    source_http_request_method: companyData.source_http_request_method || undefined,
+    source_http_request_url: companyData.source_http_request_url || undefined,
+    source_http_request_headers_json: companyData.source_http_request_headers_json || undefined,
+    source_http_request_body: companyData.source_http_request_body || undefined,
+    source_http_request_json: companyData.source_http_request_json || undefined,
+    source_http_request_multi_value_query_string_json: companyData.source_http_request_multi_value_query_string_json || undefined,
+    property_improvement_id: undefined,
     property_id: propertyId
   };
 }
@@ -369,6 +378,8 @@ export function createPropertyImprovementEntity(
     source_http_request_json: improvementData.source_http_request_json || undefined,
     source_http_request_multi_value_query_string_json: improvementData.source_http_request_multi_value_query_string_json || undefined,
     file_id: improvementData.file_id || undefined,
+    property_cid: undefined,
+    property_hash: undefined,
     property_id: propertyId,
   };
 }
@@ -861,6 +872,7 @@ export async function processPropertyImprovementData(context: any, metadata: any
   const improvementCids: string[] = [];
   let resolvedPropertyId: string | undefined;
   let resolvedParcelIdentifier: string | undefined;
+  const contractorRelationshipCids: string[] = [];
 
   for (const r of rels) {
     if (r.error) {
@@ -959,6 +971,60 @@ export async function processPropertyImprovementData(context: any, metadata: any
     };
     context.PropertyImprovement.set(pi);
     context.log.info("PI: created improvement", { id: pi.id, property_id: pi.property_id });
+
+    // Process property_improvement_has_contractor relationships for this improvement
+    const contractorRefs = metadata.relationships?.property_improvement_has_contractor || [];
+    for (const ref of contractorRefs) {
+      const contractorRelCid = ref?.["/"];
+      if (!contractorRelCid) continue;
+      try {
+        const rel = await context.effect(getRelationshipData, contractorRelCid);
+        const contractorCid = rel.to?.["/"];
+        if (!contractorCid) continue;
+
+        // Fetch company data and create contractor company linked to PI
+        const companyData = await context.effect(getCompanyData, contractorCid);
+        const contractorCompany: Company = {
+          id: contractorCid,
+          name: companyData.name || undefined,
+          request_identifier: companyData.request_identifier || undefined,
+          source_http_request_method: (companyData as any).source_http_request_method || undefined,
+          source_http_request_url: (companyData as any).source_http_request_url || undefined,
+          source_http_request_headers_json: (companyData as any).source_http_request_headers_json || undefined,
+          source_http_request_body: (companyData as any).source_http_request_body || undefined,
+          source_http_request_json: (companyData as any).source_http_request_json || undefined,
+          source_http_request_multi_value_query_string_json: (companyData as any).source_http_request_multi_value_query_string_json || undefined,
+          property_improvement_id: pi.id,
+          property_id: pi.property_id,
+        };
+        context.Company.set(contractorCompany);
+
+        // Handle company_has_communication for this contractor
+        const commRefs = metadata.relationships?.company_has_communication || [];
+        for (const commRef of commRefs) {
+          const commRelCid = commRef?.["/"];
+          if (!commRelCid) continue;
+          try {
+            const commRel = await context.effect(getRelationshipData, commRelCid);
+            const commCid = commRel.to?.["/"];
+            if (!commCid) continue;
+            const commData = await context.effect(getCommunicationData, commCid);
+
+            const communicationEntity: Communication = {
+              id: commCid,
+              email_address: (commData as any).email_address || undefined,
+              phone_number: (commData as any).phone_number || undefined,
+              company_id: contractorCompany.id,
+            };
+            context.Communication.set(communicationEntity);
+          } catch (e) {
+            context.log.warn("PI: failed to process company communication", { commRelCid, error: (e as Error).message });
+          }
+        }
+      } catch (e) {
+        context.log.warn("PI: failed to process contractor relationship", { contractorRelCid, error: (e as Error).message });
+      }
+    }
   }
   return { propertyEntityId: effectivePropertyId, permitNumberNormalized };
 }

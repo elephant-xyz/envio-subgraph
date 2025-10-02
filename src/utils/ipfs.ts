@@ -762,6 +762,28 @@ export const getCompanyData = experimental_createEffect(
     }
 );
 
+// Fetch communication data
+export const getCommunicationData = experimental_createEffect(
+    {
+        name: "getCommunicationData",
+        input: S.string,
+        output: communicationSchema,
+        cache: true,
+    },
+    async ({ input: cid, context }) => {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "communication data",
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
+                email_address: data.email_address || undefined,
+                phone_number: data.phone_number || undefined,
+            })
+        );
+    }
+);
+
 export const getLayoutData = experimental_createEffect(
     {
         name: "getLayoutData",
