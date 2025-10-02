@@ -949,7 +949,14 @@ export async function processPropertyImprovementData(context: any, metadata: any
     if (!permitNumberNormalized) {
       permitNumberNormalized = normalizePermit(r.data?.permit_number);
     }
-    const pi: PropertyImprovement = createPropertyImprovementEntity(r.cid, r.data, effectivePropertyId);
+    const baseImprovement: PropertyImprovement = createPropertyImprovementEntity(r.cid, r.data, effectivePropertyId);
+    const pi: PropertyImprovement = {
+      ...baseImprovement,
+      // resolvedPropertyId is the property CID when available
+      property_cid: resolvedPropertyId || undefined,
+      // mainEntityId is the on-chain propertyHash passed in to this function
+      property_hash: mainEntityId,
+    };
     context.PropertyImprovement.set(pi);
     context.log.info("PI: created improvement", { id: pi.id, property_id: pi.property_id });
   }
