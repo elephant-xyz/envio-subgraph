@@ -188,6 +188,7 @@ export const propertyImprovementSchema = S.schema({
   source_http_request_headers_json: S.optional(S.string),
   source_http_request_body: S.optional(S.string),
   source_http_request_json: S.optional(S.string),
+  source_http_request_multi_value_query_string_json: S.optional(S.string),
   file_id: S.optional(S.string),
 });
 

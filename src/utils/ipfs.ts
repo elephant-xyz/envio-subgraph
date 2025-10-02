@@ -885,6 +885,7 @@ export const getPropertyImprovementData = experimental_createEffect(
                 source_http_request_headers_json: data.source_http_request?.headers ? JSON.stringify(data.source_http_request.headers) : undefined,
                 source_http_request_body: data.source_http_request?.body || undefined,
                 source_http_request_json: data.source_http_request?.json ? JSON.stringify(data.source_http_request.json) : undefined,
+                source_http_request_multi_value_query_string_json: data.source_http_request?.multiValueQueryString ? JSON.stringify(data.source_http_request.multiValueQueryString) : undefined,
                 file_id: data.file_id || undefined,
             })
         );

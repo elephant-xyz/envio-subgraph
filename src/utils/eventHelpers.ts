@@ -367,6 +367,7 @@ export function createPropertyImprovementEntity(
     source_http_request_headers_json: improvementData.source_http_request_headers_json || undefined,
     source_http_request_body: improvementData.source_http_request_body || undefined,
     source_http_request_json: improvementData.source_http_request_json || undefined,
+    source_http_request_multi_value_query_string_json: improvementData.source_http_request_multi_value_query_string_json || undefined,
     file_id: improvementData.file_id || undefined,
     property_id: propertyId,
   };

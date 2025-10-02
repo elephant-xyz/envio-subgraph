@@ -299,6 +299,7 @@ type PropertyImprovement {
   source_http_request_headers_json: String
   source_http_request_body: String
   source_http_request_json: String
+  source_http_request_multi_value_query_string_json: String
   file_id: String
   property_id: String!
 }
