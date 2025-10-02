@@ -41,6 +41,11 @@ ERC1967Proxy.DataGroupHeartBeat.handler(async ({ event, context }) => {
 
   try {
     const metadata = await context.effect(getIpfsMetadata, cid);
+    context.log.info("HeartBeat metadata label", {
+      label: metadata.label,
+      cid,
+      propertyHash: event.params.propertyHash,
+    });
 
     // Skip if not County label
     if (metadata.label !== "County") {
@@ -131,6 +136,11 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
 
   try {
     const metadata = await context.effect(getIpfsMetadata, cid);
+    context.log.info("DataSubmitted metadata label", {
+      label: metadata.label,
+      cid,
+      propertyHash: event.params.propertyHash,
+    });
 
     // Use propertyHash as the unique ID for the property
     const propertyId = event.params.propertyHash;
