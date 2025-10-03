@@ -235,6 +235,27 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
             };
             context.File.set(updatedFileEntity);
           }
+
+          // Remap PropertyImprovement.property_id to parcel_identifier (mainEntityId)
+          const oldIds: string[] = [propertyId];
+          if (propertyDataId) oldIds.push(propertyDataId);
+          for (const oldId of oldIds) {
+            try {
+              const improvements = await context.PropertyImprovement.getWhere.property_id.eq(oldId);
+              for (const pi of improvements) {
+                const updatedPi: DataSubmittedWithLabel = { ...pi, property_id: mainEntityId } as any;
+                // Types expect PropertyImprovement_t; cast via any to satisfy spread typing
+                context.PropertyImprovement.set(updatedPi as any);
+              }
+              context.log.info("Remapped PropertyImprovement.property_id", {
+                from: oldId,
+                to: mainEntityId,
+                count: improvements.length,
+              });
+            } catch (e) {
+              context.log.warn("Failed to remap PropertyImprovement.property_id", { from: oldId, to: mainEntityId, error: (e as Error).message });
+            }
+          }
         }
       }
 
