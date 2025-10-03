@@ -17,6 +17,8 @@ import {
 } from "generated";
 import { bytes32ToCID, getIpfsMetadata, getRelationshipData, getStructureData, getAddressData, getPropertyData, getIpfsFactSheetData, getLotData, getSalesHistoryData, getTaxData, getUtilityData, getFloodStormData, getPersonData, getCompanyData, getDeedData,getFileData,getLayoutData } from "./ipfs";
 
+//Added for deploying indexer
+
 // Function to get all wallet addresses from environment variables
 export function getAllowedSubmitters(): string[] {
   const wallets: string[] = [];
