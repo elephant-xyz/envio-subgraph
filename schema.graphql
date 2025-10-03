@@ -313,6 +313,7 @@ type PropertyImprovement {
   property_hash: String
   property_id: String!
   contractors: [Company!]! @derivedFrom(field: "property_improvement_id")
+  communications: [Communication!]! @derivedFrom(field: "property_improvement_id")
 }
 
 type Communication {
@@ -320,6 +321,7 @@ type Communication {
   email_address: String
   phone_number: String
   company_id: String!
+  property_improvement_id: String
 }
 
 type DataSubmittedWithLabel {

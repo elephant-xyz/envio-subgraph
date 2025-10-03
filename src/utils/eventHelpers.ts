@@ -911,6 +911,31 @@ export async function processPropertyImprovementData(context: any, metadata: any
     }
   }
 
+  // Fallback: derive improvement CIDs from property_improvement_has_contractor when no property_has_property_improvement present
+  if (improvementCids.length === 0) {
+    const contractorRefs = metadata.relationships?.property_improvement_has_contractor || [];
+    context.log.info("PI: fallback - deriving improvements from contractor relationships", {
+      contractorRefCount: contractorRefs.length,
+    });
+    for (const ref of contractorRefs) {
+      const relCid = ref?.["/"];
+      if (!relCid) continue;
+      try {
+        const rel = await context.effect(getRelationshipData, relCid);
+        const improvementFromCid = rel.from?.["/"];
+        if (improvementFromCid && !improvementCids.includes(improvementFromCid)) {
+          improvementCids.push(improvementFromCid);
+          context.log.info("PI: fallback - discovered improvement from contractor rel", {
+            relationshipCid: relCid,
+            improvementCid: improvementFromCid,
+          });
+        }
+      } catch (e) {
+        context.log.warn("PI: fallback - failed to read contractor relationship", { relCid, error: (e as Error).message });
+      }
+    }
+  }
+
   // Prefer parcel_identifier (County-scoped id), then property CID, fallback to propertyHash
   const effectivePropertyId = resolvedParcelIdentifier || resolvedPropertyId || mainEntityId;
   if (!resolvedPropertyId) {
@@ -1025,6 +1050,7 @@ export async function processPropertyImprovementData(context: any, metadata: any
               email_address: (commData as any).email_address || undefined,
               phone_number: (commData as any).phone_number || undefined,
               company_id: contractorCompany.id,
+              property_improvement_id: pi.id,
             };
             context.Communication.set(communicationEntity);
           } catch (e) {
