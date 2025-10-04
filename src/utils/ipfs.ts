@@ -90,8 +90,8 @@ export function bytes32ToCID(dataHashHex: string): string {
 function buildEndpoints() {
     // Use only the specified gateway with infinite retries
     return [{
-        url: "https://maroon-ready-rooster-237.mypinata.cloud/ipfs",
-        token: "pE_aFn_OMobMfmayHdoRYV_MRQ_ECYbzI4XGsKNV4x4VkuQiUUeNmFVRbiCwYb73"
+        url: "https://dry-fuchsia-ox.myfilebase.com/ipfs",
+        token: null
     }];
 }
 
