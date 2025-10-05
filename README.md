@@ -7,6 +7,7 @@ A blockchain indexer built with Envio that processes property data events from s
 
 
 
+
 To create a new deployment in Envio:
 
 
