@@ -86,13 +86,22 @@ export function bytes32ToCID(dataHashHex: string): string {
     return "b" + output;
 }
 
-// Build gateway configuration - use single specified gateway only
+// Build gateway configuration - use multiple gateways with infinite retries
 function buildEndpoints() {
-    // Use only the specified gateway with infinite retries
-    return [{
-        url: "https://dry-fuchsia-ox.myfilebase.com/ipfs",
-        token: null
-    }];
+    return [
+        {
+            url: "https://dry-fuchsia-ox.myfilebase.com/ipfs",
+            token: null
+        },
+        {
+            url: "https://maroon-ready-rooster-237.mypinata.cloud/ipfs",
+            token: "pE_aFn_OMobMfmayHdoRYV_MRQ_ECYbzI4XGsKNV4x4VkuQiUUeNmFVRbiCwYb73"
+        },
+        {
+            url: "https://ipfs.io/ipfs",
+            token: null
+        }
+    ];
 }
 
 // Gateway configuration with optional authentication tokens
@@ -135,6 +144,14 @@ function shouldRetryIndefinitely(response?: Response, error?: Error): boolean {
         return response.status === 429 || response.status === 500 || response.status === 502 || response.status === 504;
     }
 
+    return false;
+}
+
+// Helper function to check if we should try next gateway (but not retry indefinitely)
+function shouldTryNextGateway(response?: Response): boolean {
+    if (response) {
+        return response.status === 404;
+    }
     return false;
 }
 
@@ -191,8 +208,19 @@ async function fetchDataWithInfiniteRetry<T>(
                         });
                     }
                 } else {
+                    // Check if we should try next gateway (404)
+                    if (shouldTryNextGateway(response)) {
+                        context.log.warn(`${dataType} not found on this gateway, trying next gateway`, {
+                            cid,
+                            endpoint: endpoint.url,
+                            status: response.status,
+                            statusText: response.statusText,
+                            attempt: totalAttempts
+                        });
+                        continue; // Try next gateway
+                    }
                     // Check if we should retry indefinitely
-                    if (shouldRetryIndefinitely(response)) {
+                    else if (shouldRetryIndefinitely(response)) {
                         context.log.warn(`${dataType} fetch failed with retriable error, will retry indefinitely`, {
                             cid,
                             endpoint: endpoint.url,
