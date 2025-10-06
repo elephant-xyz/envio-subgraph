@@ -137,7 +137,7 @@ function shouldRetryIndefinitely(response?: Response, error?: Error): boolean {
         cause?.message?.includes('Connect Timeout Error') ||
         cause?.message?.includes('timeout')) {
         return true;
-    }
+    } 
 
     // Retry indefinitely on specific HTTP status codes
     if (response) {
