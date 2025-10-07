@@ -11,9 +11,7 @@ export const ipfsMetadataSchema = S.schema({
     property_has_address: S.optional(S.schema({
       "/": S.string
     })),
-    property_has_lot: S.optional(S.schema({
-      "/": S.string
-    })),
+    // Removed property_has_lot
     property_has_sales_history: S.optional(S.array(S.schema({
       "/": S.string
     }))),
@@ -23,15 +21,8 @@ export const ipfsMetadataSchema = S.schema({
     property_has_utility: S.optional(S.schema({
       "/": S.string
     })),
-    property_has_flood_storm_information: S.optional(S.schema({
-      "/": S.string
-    })),
-    person_has_property: S.optional(S.array(S.schema({
-      "/": S.string
-    }))),
-    company_has_property: S.optional(S.array(S.schema({
-      "/": S.string
-    }))),
+    // Removed property_has_flood_storm_information
+    // Removed person_has_property and company_has_property
     property_has_layout: S.optional(S.array(S.schema({
       "/": S.string
     }))),
@@ -163,23 +154,7 @@ export const ipfsFactSheetSchema = S.schema({
   full_generation_command: S.optional(S.string),
 });
 
-// Lot Data Schema
-export const lotDataSchema = S.schema({
-  driveway_condition: S.optional(S.string),
-  driveway_material: S.optional(S.string),
-  fence_height: S.optional(S.string),
-  fence_length: S.optional(S.string),
-  fencing_type: S.optional(S.string),
-  landscaping_features: S.optional(S.string),
-  lot_area_sqft: S.optional(S.number),
-  lot_condition_issues: S.optional(S.string),
-  lot_length_feet: S.optional(S.number),
-  lot_size_acre: S.optional(S.number),
-  lot_type: S.optional(S.string),
-  lot_width_feet: S.optional(S.number),
-  request_identifier: S.optional(S.string),
-  view: S.optional(S.string),
-});
+// Removed Lot Data Schema
 
 // Sales History Data Schema
 export const salesHistorySchema = S.schema({
@@ -230,37 +205,11 @@ export const utilitySchema = S.schema({
   water_source_type: S.optional(S.string),
 });
 
-// Flood Storm Information Data Schema
-export const floodStormInformationSchema = S.schema({
-  community_id: S.optional(S.string),
-  effective_date: S.optional(S.string),
-  evacuation_zone: S.optional(S.string),
-  fema_search_url: S.optional(S.string),
-  flood_insurance_required: S.optional(S.boolean),
-  flood_zone: S.optional(S.string),
-  map_version: S.optional(S.string),
-  panel_number: S.optional(S.string),
-  request_identifier: S.optional(S.string),
-});
+// Removed Flood Storm Information Data Schema
 
-// Person Data Schema
-export const personSchema = S.schema({
-  birth_date: S.optional(S.string),
-  first_name: S.string,
-  last_name: S.string,
-  middle_name: S.optional(S.string),
-  prefix_name: S.optional(S.string),
-  request_identifier: S.optional(S.string),
-  suffix_name: S.optional(S.string),
-  us_citizenship_status: S.optional(S.string),
-  veteran_status: S.optional(S.boolean),
-});
+// Removed Person Data Schema
 
-// Company Data Schema
-export const companySchema = S.schema({
-  name: S.optional(S.string),
-  request_identifier: S.optional(S.string),
-});
+// Removed Company Data Schema
 
 // Layout Data Schema
 export const layoutSchema = S.schema({
@@ -321,13 +270,11 @@ export type StructureData = S.Infer<typeof structureSchema>;
 export type AddressData = S.Infer<typeof addressSchema>;
 export type PropertyData = S.Infer<typeof propertySchema>;
 export type IpfsFactSheetData = S.Infer<typeof ipfsFactSheetSchema>;
-export type LotData = S.Infer<typeof lotDataSchema>;
+// Removed LotData type
 export type SalesHistoryData = S.Infer<typeof salesHistorySchema>;
 export type TaxData = S.Infer<typeof taxSchema>;
 export type UtilityData = S.Infer<typeof utilitySchema>;
-export type FloodStormInformationData = S.Infer<typeof floodStormInformationSchema>;
-export type PersonData = S.Infer<typeof personSchema>;
-export type CompanyData = S.Infer<typeof companySchema>;
+// Removed FloodStormInformationData, PersonData, CompanyData types
 export type LayoutData = S.Infer<typeof layoutSchema>;
 export type FileData = S.Infer<typeof fileSchema>;
 export type DeedData = S.Infer<typeof deedSchema>;

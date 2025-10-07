@@ -6,7 +6,6 @@ import {
   ERC1967Proxy_DataGroupHeartBeat,
   ERC1967Proxy_DataSubmitted,
   DataSubmittedWithLabel,
-  Structure,
   Address,
   Property,
   Ipfs,
@@ -137,25 +136,17 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
     let parcelIdentifier: string | undefined;
 
     // Initialize entity IDs that will be populated from IPFS data
-    let structureId: string | undefined;
     let addressId: string | undefined;
     let propertyDataId: string | undefined;
     let ipfsId: string | undefined;
-    let lotId: string | undefined;
-    let utilityId: string | undefined;
-    let floodStormId: string | undefined;
 
     if (metadata.label === "County") {
       // Process County data first to get parcel_identifier
       const result = await processCountyData(context, metadata, cid, propertyId);
       if (result) {
-        structureId = result.structureId;
         addressId = result.addressId;
         propertyDataId = result.propertyDataId;
         ipfsId = result.ipfsId;
-        lotId = result.lotId;
-        utilityId = result.utilityId;
-        floodStormId = result.floodStormId;
         parcelIdentifier = result.parcelIdentifier;
 
         // Only use parcel_identifier as property ID - skip if not found
@@ -190,41 +181,9 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
             context.Tax.set(updatedTaxEntity);
           }
 
-          // Need to update person entities with correct property_id
-          for (const personEntity of result.personEntities) {
-            const updatedPersonEntity = {
-              ...personEntity,
-              property_id: mainEntityId
-            };
-            context.Person.set(updatedPersonEntity);
-          }
+          // Removed person/company updates as those entities are no longer indexed
 
-          // Need to update company entities with correct property_id
-          for (const companyEntity of result.companyEntities) {
-            const updatedCompanyEntity = {
-              ...companyEntity,
-              property_id: mainEntityId
-            };
-            context.Company.set(updatedCompanyEntity);
-          }
-
-          // Need to update layout entities with correct property_id
-          for (const layoutEntity of result.layoutEntities) {
-            const updatedLayoutEntity = {
-              ...layoutEntity,
-              property_id: mainEntityId
-            };
-            context.Layout.set(updatedLayoutEntity);
-          }
-
-          // Need to update file entities with correct property_id
-          for (const fileEntity of result.fileEntities) {
-            const updatedFileEntity = {
-              ...fileEntity,
-              property_id: mainEntityId
-            };
-            context.File.set(updatedFileEntity);
-          }
+          
         }
       }
 
@@ -260,13 +219,9 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
       cid: cid,
       label: metadata.label,
       id_source: idSource,
-      structure_id: structureId,
       address_id: addressId,
       property_id: propertyDataId,
       ipfs_id: ipfsId,
-      lot_id: lotId,
-      utility_id: utilityId,
-      flood_storm_information_id: floodStormId,
       datetime: BigInt(event.block.timestamp),
     };
 
@@ -276,7 +231,6 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
       propertyHash: event.params.propertyHash,
       label: metadata.label,
       idSource,
-      structureId,
       addressId,
       propertyDataId,
       isUpdate: !!existingEntityDS,
