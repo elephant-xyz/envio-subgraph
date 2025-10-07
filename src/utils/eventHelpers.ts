@@ -152,49 +152,124 @@ export async function processCountyData(context: any, metadata: any, cid: string
   const salesHistoryEntities: SalesHistory[] = [];
   const taxEntities: Tax[] = [];
 
-
-  // First fetch relationships to get CIDs
-  const relationshipPromises = [];
-
+  // PHASE 1: Resolve property/address/ipfs first to get parcelIdentifier
   const propertyAddressCid = metadata.relationships?.property_has_address?.["/"];
   const addressFactSheetCid = metadata.relationships?.address_has_fact_sheet?.[0]?.["/"];
-  const salesHistoryCids = metadata.relationships?.property_has_sales_history || [];
-  const taxCids = metadata.relationships?.property_has_tax || [];
-  
 
+  const phase1RelPromises: any[] = [];
   if (propertyAddressCid) {
-    relationshipPromises.push(
+    phase1RelPromises.push(
       context.effect(getRelationshipData, propertyAddressCid)
         .then((data: any) => ({ type: 'property_rel', data, cid: propertyAddressCid }))
         .catch((error: any) => ({ type: 'property_rel', error, cid: propertyAddressCid }))
     );
   }
-
   if (addressFactSheetCid) {
-    relationshipPromises.push(
+    phase1RelPromises.push(
       context.effect(getRelationshipData, addressFactSheetCid)
         .then((data: any) => ({ type: 'address_rel', data, cid: addressFactSheetCid }))
         .catch((error: any) => ({ type: 'address_rel', error, cid: addressFactSheetCid }))
     );
   }
 
-  // Add sales history relationship fetching
+  const phase1RelResults = await Promise.all(phase1RelPromises);
+
+  let propertyDataCid: string | undefined;
+  let addressDataCid: string | undefined;
+  let ipfsDataCid: string | undefined;
+
+  for (const rel of phase1RelResults) {
+    if (rel.type === 'property_rel' && !rel.error) {
+      propertyDataCid = rel.data.from?.["/"] || rel.data.to?.["/"];
+    } else if (rel.type === 'address_rel' && !rel.error) {
+      addressDataCid = rel.data.from?.["/"];
+      ipfsDataCid = rel.data.to?.["/"];
+    }
+  }
+
+  const phase1DataPromises: any[] = [];
+  if (propertyDataCid) {
+    phase1DataPromises.push(
+      context.effect(getPropertyData, propertyDataCid)
+        .then((data: any) => ({ type: 'property', data, cid: propertyDataCid }))
+        .catch((error: any) => ({ type: 'property', error, cid: propertyDataCid }))
+    );
+  }
+  if (addressDataCid) {
+    phase1DataPromises.push(
+      context.effect(getAddressData, addressDataCid)
+        .then((data: any) => ({ type: 'address', data, cid: addressDataCid }))
+        .catch((error: any) => ({ type: 'address', error, cid: addressDataCid }))
+    );
+  }
+  if (ipfsDataCid) {
+    phase1DataPromises.push(
+      context.effect(getIpfsFactSheetData, ipfsDataCid)
+        .then((data: any) => ({ type: 'ipfs', data, cid: ipfsDataCid }))
+        .catch((error: any) => ({ type: 'ipfs', error, cid: ipfsDataCid }))
+    );
+  }
+
+  const phase1DataResults = await Promise.all(phase1DataPromises);
+
+  for (const result of phase1DataResults) {
+    if (result.error) {
+      context.log.warn(`Failed to fetch ${result.type} data`, { cid, error: result.error.message });
+      continue;
+    }
+    if (result.type === 'property') {
+      propertyDataId = result.cid;
+      const propertyEntity = createPropertyEntity(result.cid, result.data);
+      context.Property.set(propertyEntity);
+      if (result.data.parcel_identifier) {
+        parcelIdentifier = result.data.parcel_identifier;
+      }
+    } else if (result.type === 'address') {
+      addressId = result.cid;
+      const addressEntity = createAddressEntity(result.cid, result.data);
+      context.Address.set(addressEntity);
+    } else if (result.type === 'ipfs') {
+      ipfsId = result.cid;
+      const ipfsEntity = createIpfsEntity(result.cid, result.data);
+      context.Ipfs.set(ipfsEntity);
+    }
+  }
+
+  if (!parcelIdentifier) {
+    context.log.error("parcel_identifier missing; aborting sales/tax creation", {
+      propertyHash: propertyEntityId,
+      cid,
+    });
+    return {
+      addressId,
+      propertyDataId,
+      ipfsId,
+      taxEntities,
+      parcelIdentifier,
+      salesHistoryEntities,
+    };
+  }
+  const propertyIdForChildren = parcelIdentifier;
+
+  // PHASE 2: sales/tax relationships and data using final propertyId
+  const salesHistoryCids = metadata.relationships?.property_has_sales_history || [];
+  const taxCids = metadata.relationships?.property_has_tax || [];
+
+  const phase2RelPromises: any[] = [];
   for (const salesHistoryRef of salesHistoryCids) {
     const salesHistoryRelCid = salesHistoryRef?.["/"];
     if (salesHistoryRelCid) {
-      relationshipPromises.push(
+      phase2RelPromises.push(
         context.effect(getRelationshipData, salesHistoryRelCid)
           .then((data: any) => ({ type: 'sales_history_rel', data, cid: salesHistoryRelCid }))
           .catch((error: any) => ({ type: 'sales_history_rel', error, cid: salesHistoryRelCid }))
       );
     }
   }
-
-  // Add tax relationship fetching
   for (const taxRef of taxCids) {
     const taxRelCid = taxRef?.["/"];
     if (taxRelCid) {
-      relationshipPromises.push(
+      phase2RelPromises.push(
         context.effect(getRelationshipData, taxRelCid)
           .then((data: any) => ({ type: 'tax_rel', data, cid: taxRelCid }))
           .catch((error: any) => ({ type: 'tax_rel', error, cid: taxRelCid }))
@@ -202,39 +277,24 @@ export async function processCountyData(context: any, metadata: any, cid: string
     }
   }
 
+  const phase2RelResults = await Promise.all(phase2RelPromises);
 
-  // Removed layout, file, deed relationships
-
-  const relationshipResults = await Promise.all(relationshipPromises);
-
-  // Extract all CIDs for parallel fetching
-  const allDataPromises = [];
-  let propertyDataCid: string | undefined;
-  let addressDataCid: string | undefined;
-  let ipfsDataCid: string | undefined;
-
-  for (const relationshipResult of relationshipResults) {
-    if (relationshipResult.type === 'property_rel' && !relationshipResult.error) {
-      // From property_has_address: get property (from)
-      propertyDataCid = relationshipResult.data.from?.["/"];
-    } else if (relationshipResult.type === 'address_rel' && !relationshipResult.error) {
-      addressDataCid = relationshipResult.data.from?.["/"];
-      ipfsDataCid = relationshipResult.data.to?.["/"];
-    } else if (relationshipResult.type === 'sales_history_rel' && !relationshipResult.error) {
-      // From property_has_sales_history: get target CID and fetch sales data
-      const targetCid = relationshipResult.data.to?.["/"];
+  const phase2DataPromises: any[] = [];
+  for (const rel of phase2RelResults) {
+    if (rel.error) continue;
+    if (rel.type === 'sales_history_rel') {
+      const targetCid = rel.data.to?.["/"] || rel.data.from?.["/"];
       if (targetCid) {
-        allDataPromises.push(
+        phase2DataPromises.push(
           context.effect(getSalesHistoryData, targetCid)
             .then((data: any) => ({ type: 'sales_history', data, cid: targetCid }))
             .catch((error: any) => ({ type: 'sales_history', error, cid: targetCid }))
         );
       }
-    } else if (relationshipResult.type === 'tax_rel' && !relationshipResult.error) {
-      // From property_has_tax: get target CID and fetch tax data
-      const targetCid = relationshipResult.data.to?.["/"];
+    } else if (rel.type === 'tax_rel') {
+      const targetCid = rel.data.to?.["/"] || rel.data.from?.["/"];
       if (targetCid) {
-        allDataPromises.push(
+        phase2DataPromises.push(
           context.effect(getTaxData, targetCid)
             .then((data: any) => ({ type: 'tax', data, cid: targetCid }))
             .catch((error: any) => ({ type: 'tax', error, cid: targetCid }))
@@ -242,74 +302,22 @@ export async function processCountyData(context: any, metadata: any, cid: string
       }
     }
   }
-  if (propertyDataCid) {
-    allDataPromises.push(
-      context.effect(getPropertyData, propertyDataCid)
-        .then((data: any) => ({ type: 'property', data, cid: propertyDataCid }))
-        .catch((error: any) => ({ type: 'property', error, cid: propertyDataCid }))
-    );
-  }
 
-  if (addressDataCid) {
-    allDataPromises.push(
-      context.effect(getAddressData, addressDataCid)
-        .then((data: any) => ({ type: 'address', data, cid: addressDataCid }))
-        .catch((error: any) => ({ type: 'address', error, cid: addressDataCid }))
-    );
-  }
+  const phase2DataResults = await Promise.all(phase2DataPromises);
 
-  if (ipfsDataCid) {
-    allDataPromises.push(
-      context.effect(getIpfsFactSheetData, ipfsDataCid)
-        .then((data: any) => ({ type: 'ipfs', data, cid: ipfsDataCid }))
-        .catch((error: any) => ({ type: 'ipfs', error, cid: ipfsDataCid }))
-    );
-  }
-
-
-
-  // Execute all data fetches in parallel
-  const allDataResults = await Promise.all(allDataPromises);
-
-  // Process all results
-  for (const result of allDataResults) {
+  for (const result of phase2DataResults) {
     if (result.error) {
-      context.log.warn(`Failed to fetch ${result.type} data`, {
-        cid,
-        error: result.error.message
-      });
+      context.log.warn(`Failed to fetch ${result.type} data`, { cid, error: result.error.message });
       continue;
     }
-
-    if (result.type === 'property') {
-      propertyDataId = result.cid;
-      const propertyEntity = createPropertyEntity(result.cid, result.data);
-      context.Property.set(propertyEntity);
-
-      if (result.data.parcel_identifier) {
-        parcelIdentifier = result.data.parcel_identifier;
-      }
-
-    } else if (result.type === 'address') {
-      addressId = result.cid;
-      const addressEntity = createAddressEntity(result.cid, result.data);
-      context.Address.set(addressEntity);
-
-    } else if (result.type === 'ipfs') {
-      ipfsId = result.cid;
-      const ipfsEntity = createIpfsEntity(result.cid, result.data);
-      context.Ipfs.set(ipfsEntity);
-
-    } else if (result.type === 'sales_history') {
-      const salesHistoryEntity = createSalesHistoryEntity(result.cid, result.data, propertyEntityId);
+    if (result.type === 'sales_history') {
+      const salesHistoryEntity = createSalesHistoryEntity(result.cid, result.data, propertyIdForChildren);
       context.SalesHistory.set(salesHistoryEntity);
       salesHistoryEntities.push(salesHistoryEntity);
-
     } else if (result.type === 'tax') {
-      const taxEntity = createTaxEntity(result.cid, result.data, propertyEntityId);
+      const taxEntity = createTaxEntity(result.cid, result.data, propertyIdForChildren);
       context.Tax.set(taxEntity);
       taxEntities.push(taxEntity);
-
     }
   }
 
