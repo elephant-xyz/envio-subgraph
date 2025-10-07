@@ -144,6 +144,7 @@ async function fetchDataWithInfiniteRetry<T>(
     transformer: (data: any) => T
 ): Promise<T> {
     let totalAttempts = 0;
+    let notFoundAttempts = 0; // count 404 attempts
 
     while (true) {
         for (let i = 0; i < endpoints.length; i++) {
@@ -173,6 +174,34 @@ async function fetchDataWithInfiniteRetry<T>(
                         });
                     }
                 } else {
+                    // Special-case: 404 should retry only 3 times, then error
+                    if (response.status === 404) {
+                        notFoundAttempts++;
+                        if (notFoundAttempts < 3) {
+                            context.log.warn(`${dataType} fetch returned 404, will retry`, {
+                                cid,
+                                endpoint: endpoint.url,
+                                status: response.status,
+                                statusText: response.statusText,
+                                attempt404: notFoundAttempts,
+                                maxAttempts404: 3,
+                                attempt: totalAttempts
+                            });
+                            continue;
+                        } else {
+                            context.log.error(`${dataType} fetch returned 404 after 3 attempts, stopping`, {
+                                cid,
+                                endpoint: endpoint.url,
+                                status: response.status,
+                                statusText: response.statusText,
+                                attempt404: notFoundAttempts,
+                                maxAttempts404: 3,
+                                attempt: totalAttempts
+                            });
+                            throw new Error(`${dataType} fetch failed with status 404 after 3 attempts`);
+                        }
+                    }
+
                     // Check if we should retry indefinitely
                     if (shouldRetryIndefinitely(response)) {
                         context.log.warn(`${dataType} fetch failed with retriable error, will retry indefinitely`, {
