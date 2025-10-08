@@ -5,6 +5,10 @@ import { S } from "envio";
 export const ipfsMetadataSchema = S.schema({
   label: S.string,
   relationships: S.optional(S.schema({
+    // Property Improvement relationships
+    property_has_property_improvement: S.optional(S.array(S.schema({
+      "/": S.string
+    }))),
     property_has_structure: S.optional(S.schema({
       "/": S.string
     })),
@@ -36,6 +40,13 @@ export const ipfsMetadataSchema = S.schema({
       "/": S.string
     }))),
     property_has_file: S.optional(S.array(S.schema({
+      "/": S.string
+    }))),
+    // New relationships
+    property_improvement_has_contractor: S.optional(S.array(S.schema({
+      "/": S.string
+    }))),
+    company_has_communication: S.optional(S.array(S.schema({
       "/": S.string
     }))),
     deed_has_file: S.optional(S.array(S.schema({
@@ -163,6 +174,31 @@ export const ipfsFactSheetSchema = S.schema({
   full_generation_command: S.optional(S.string),
 });
 
+// Property Improvement Data Schema (best-effort)
+export const propertyImprovementSchema = S.schema({
+  request_identifier: S.optional(S.string),
+  description: S.optional(S.string),
+  improvement_type: S.optional(S.string),
+  improvement_status: S.optional(S.string),
+  contractor_type: S.optional(S.string),
+  permit_number: S.optional(S.string),
+  permit_status: S.optional(S.string),
+  permit_required: S.optional(S.boolean),
+  permit_issue_date: S.optional(S.string),
+  permit_expiration_date: S.optional(S.string),
+  contractor_name: S.optional(S.string),
+  contractor_license: S.optional(S.string),
+  estimated_cost_amount: S.optional(S.number),
+  completion_date: S.optional(S.string),
+  source_http_request_method: S.optional(S.string),
+  source_http_request_url: S.optional(S.string),
+  source_http_request_headers_json: S.optional(S.string),
+  source_http_request_body: S.optional(S.string),
+  source_http_request_json: S.optional(S.string),
+  source_http_request_multi_value_query_string_json: S.optional(S.string),
+  file_id: S.optional(S.string),
+});
+
 // Lot Data Schema
 export const lotDataSchema = S.schema({
   driveway_condition: S.optional(S.string),
@@ -260,6 +296,13 @@ export const personSchema = S.schema({
 export const companySchema = S.schema({
   name: S.optional(S.string),
   request_identifier: S.optional(S.string),
+  // Source HTTP request fields
+  source_http_request_method: S.optional(S.string),
+  source_http_request_url: S.optional(S.string),
+  source_http_request_headers_json: S.optional(S.string),
+  source_http_request_body: S.optional(S.string),
+  source_http_request_json: S.optional(S.string),
+  source_http_request_multi_value_query_string_json: S.optional(S.string),
 });
 
 // Layout Data Schema
@@ -314,6 +357,11 @@ export const deedSchema = S.schema({
   deed_type: S.string,
 });
 
+// Communication Data Schema
+export const communicationSchema = S.schema({
+  email_address: S.optional(S.string),
+  phone_number: S.optional(S.string),
+});
 // Inferred Types
 export type IpfsMetadata = S.Infer<typeof ipfsMetadataSchema>;
 export type RelationshipData = S.Infer<typeof relationshipSchema>;
@@ -321,6 +369,7 @@ export type StructureData = S.Infer<typeof structureSchema>;
 export type AddressData = S.Infer<typeof addressSchema>;
 export type PropertyData = S.Infer<typeof propertySchema>;
 export type IpfsFactSheetData = S.Infer<typeof ipfsFactSheetSchema>;
+export type PropertyImprovementData = S.Infer<typeof propertyImprovementSchema>;
 export type LotData = S.Infer<typeof lotDataSchema>;
 export type SalesHistoryData = S.Infer<typeof salesHistorySchema>;
 export type TaxData = S.Infer<typeof taxSchema>;
@@ -328,6 +377,7 @@ export type UtilityData = S.Infer<typeof utilitySchema>;
 export type FloodStormInformationData = S.Infer<typeof floodStormInformationSchema>;
 export type PersonData = S.Infer<typeof personSchema>;
 export type CompanyData = S.Infer<typeof companySchema>;
+export type CommunicationData = S.Infer<typeof communicationSchema>;
 export type LayoutData = S.Infer<typeof layoutSchema>;
 export type FileData = S.Infer<typeof fileSchema>;
 export type DeedData = S.Infer<typeof deedSchema>;

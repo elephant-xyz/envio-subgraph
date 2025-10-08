@@ -216,7 +216,15 @@ type Company {
   id: ID!
   name: String
   request_identifier: String
-  property_id: String!
+  source_http_request_method: String
+  source_http_request_url: String
+  source_http_request_headers_json: String
+  source_http_request_body: String
+  source_http_request_json: String
+  source_http_request_multi_value_query_string_json: String
+  property_id: String
+  property_improvement_id: String
+  communications: [Communication!]! @derivedFrom(field: "company_id")
 }
 
 type Layout {
@@ -276,6 +284,52 @@ type Deed {
   files: [File!]! @derivedFrom(field: "deed_id")
 }
 
+
+
+type PropertyImprovement {
+  id: ID!
+  request_identifier: String
+  description: String
+  improvement_type: String
+  improvement_status: String
+  contractor_type: String
+  permit_number: String
+  permit_status: String
+  permit_required: Boolean
+  permit_issue_date: String
+  permit_expiration_date: String
+  contractor_name: String
+  contractor_license: String
+  estimated_cost_amount: Float
+  completion_date: String
+  source_http_request_method: String
+  source_http_request_url: String
+  source_http_request_headers_json: String
+  source_http_request_body: String
+  source_http_request_json: String
+  source_http_request_multi_value_query_string_json: String
+  file_id: String
+  property_cid: String
+  property_hash: String
+  property_id: String
+  contractors: [Company!]! @derivedFrom(field: "property_improvement_id")
+  communications: [Communication!]! @derivedFrom(field: "property_improvement_id")
+}
+
+type Communication {
+  id: ID!
+  email_address: String
+  phone_number: String
+  company_id: String!
+  property_improvement_id: String
+}
+
+# Map a propertyHash (on-chain) to a resolved property_id (e.g., parcel_identifier or property CID)
+type PropertyHashMap {
+  id: ID! # propertyHash
+  property_id: String!
+}
+
 type DataSubmittedWithLabel {
   id: ID!
   propertyHash: String!
@@ -298,4 +352,5 @@ type DataSubmittedWithLabel {
   companies: [Company!]! @derivedFrom(field: "property_id")
   layouts: [Layout!]! @derivedFrom(field: "property_id")
   files: [File!]! @derivedFrom(field: "property_id")
+  property_improvements: [PropertyImprovement!]! @derivedFrom(field: "property_id")
 }

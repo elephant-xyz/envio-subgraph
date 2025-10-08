@@ -13,7 +13,7 @@ import {
 } from "generated";
 
 import { bytes32ToCID, getIpfsMetadata, getPropertyData } from "./utils/ipfs";
-import { getAllowedSubmitters, processCountyData } from "./utils/eventHelpers";
+import { getAllowedSubmitters, processCountyData, processPropertyImprovementData } from "./utils/eventHelpers";
 
 // Get allowed submitters from environment variables - this will crash if none found
 const allowedSubmitters = getAllowedSubmitters();
@@ -41,6 +41,11 @@ ERC1967Proxy.DataGroupHeartBeat.handler(async ({ event, context }) => {
 
   try {
     const metadata = await context.effect(getIpfsMetadata, cid);
+    context.log.info("HeartBeat metadata label", {
+      label: metadata.label,
+      cid,
+      propertyHash: event.params.propertyHash,
+    });
 
     // Skip if not County label
     if (metadata.label !== "County") {
@@ -52,7 +57,12 @@ ERC1967Proxy.DataGroupHeartBeat.handler(async ({ event, context }) => {
       return;
     }
 
-    const propertyId = event.params.propertyHash;
+    // Resolve propertyId from prior data (PropertyHashMap) if present
+    let propertyId = propertyHash;
+    const priorMap = await context.PropertyHashMap.get(propertyHash);
+    if (priorMap?.property_id) {
+      propertyId = priorMap.property_id;
+    }
     let parcelIdentifier: string | undefined;
 
     // Process County data to get parcel_identifier
@@ -131,6 +141,11 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
 
   try {
     const metadata = await context.effect(getIpfsMetadata, cid);
+    context.log.info("DataSubmitted metadata label", {
+      label: metadata.label,
+      cid,
+      propertyHash: event.params.propertyHash,
+    });
 
     // Use propertyHash as the unique ID for the property
     const propertyId = event.params.propertyHash;
@@ -169,6 +184,9 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
         }
 
         const mainEntityId = parcelIdentifier;
+        // Persist mapping from propertyHash -> resolved parcel identifier for future PI events
+        const mapEntity = { id: event.params.propertyHash, property_id: mainEntityId } as any;
+        context.PropertyHashMap.set(mapEntity);
 
         // Re-process sales history with correct mainEntityId if parcelIdentifier exists
         if (parcelIdentifier && parcelIdentifier !== propertyId) {
@@ -225,31 +243,85 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
             };
             context.File.set(updatedFileEntity);
           }
+
+          // Remap PropertyImprovement.property_id to parcel_identifier (mainEntityId)
+          const oldIds: string[] = [propertyId];
+          if (propertyDataId) oldIds.push(propertyDataId);
+          for (const oldId of oldIds) {
+            try {
+              const improvements = await context.PropertyImprovement.getWhere.property_id.eq(oldId);
+              for (const pi of improvements) {
+                const updatedPi: DataSubmittedWithLabel = { ...pi, property_id: mainEntityId } as any;
+                // Types expect PropertyImprovement_t; cast via any to satisfy spread typing
+                context.PropertyImprovement.set(updatedPi as any);
+              }
+              context.log.info("Remapped PropertyImprovement.property_id", {
+                from: oldId,
+                to: mainEntityId,
+                count: improvements.length,
+              });
+            } catch (e) {
+              context.log.warn("Failed to remap PropertyImprovement.property_id", { from: oldId, to: mainEntityId, error: (e as Error).message });
+            }
+          }
         }
       }
 
+    } else if (metadata.label === "Property Improvement") {
+      // For Property Improvement, we don't require parcel identifier. Use propertyHash as main ID.
+      const mainEntityIdPI = propertyId;
+      const res = await processPropertyImprovementData(context, metadata, mainEntityIdPI);
+      const piId = res.permitNumberNormalized || mainEntityIdPI;
+      // Ensure DataSubmittedWithLabel.property_id is set for query joins
+      const labelEntity: DataSubmittedWithLabel = {
+        id: piId,
+        propertyHash: event.params.propertyHash,
+        submitter: event.params.submitter,
+        dataHash: event.params.dataHash,
+        cid: cid,
+        label: metadata.label,
+        id_source: "permit_number",
+        structure_id: undefined,
+        address_id: undefined,
+        property_id: res.propertyEntityId,
+        ipfs_id: undefined,
+        lot_id: undefined,
+        utility_id: undefined,
+        flood_storm_information_id: undefined,
+        datetime: BigInt(event.block.timestamp),
+      };
+      context.DataSubmittedWithLabel.set(labelEntity);
+      return;
     } else if (metadata.label === "Seed") {
       // Skip Seed processing - only process County labels
       return;
     }
 
+    // 
     // Skip if no parcel_identifier found - only process County events with parcel identifiers
+    // If not County, allow mainEntityId to be propertyId
     if (!parcelIdentifier) {
-      context.log.info(`Skipping DataSubmitted - no parcel_identifier found`, {
-        propertyHash: event.params.propertyHash,
-        cid,
-        metadataLabel: metadata.label
-      });
-      return;
+      if (metadata.label !== "Property Improvement") {
+        context.log.info(`Skipping DataSubmitted - no parcel_identifier found`, {
+          propertyHash: event.params.propertyHash,
+          cid,
+          metadataLabel: metadata.label
+        });
+        return;
+      }
     }
 
     // Use parcel_identifier as the main entity ID only
-    const mainEntityId = parcelIdentifier;
-    const idSource = "parcel_identifier";
+    const mainEntityId = parcelIdentifier || propertyId;
+    const idSource = parcelIdentifier ? "parcel_identifier" : "propertyHash";
 
     // Check if entity exists
     let existingEntityDS: DataSubmittedWithLabel | undefined;
-    existingEntityDS = await context.DataSubmittedWithLabel.get(parcelIdentifier);
+    if (parcelIdentifier) {
+      existingEntityDS = await context.DataSubmittedWithLabel.get(parcelIdentifier);
+    } else {
+      existingEntityDS = await context.DataSubmittedWithLabel.get(propertyId);
+    }
 
     // Update or create the main property entity
     const labelEntity: DataSubmittedWithLabel = {

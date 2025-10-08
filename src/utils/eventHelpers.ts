@@ -14,8 +14,10 @@ import {
   Layout,
   File,
   Deed,
+  PropertyImprovement,
+  Communication,
 } from "generated";
-import { bytes32ToCID, getIpfsMetadata, getRelationshipData, getStructureData, getAddressData, getPropertyData, getIpfsFactSheetData, getLotData, getSalesHistoryData, getTaxData, getUtilityData, getFloodStormData, getPersonData, getCompanyData, getDeedData,getFileData,getLayoutData } from "./ipfs";
+import { bytes32ToCID, getIpfsMetadata, getRelationshipData, getStructureData, getAddressData, getPropertyData, getIpfsFactSheetData, getLotData, getSalesHistoryData, getTaxData, getUtilityData, getFloodStormData, getPersonData, getCompanyData, getDeedData,getFileData,getLayoutData, getPropertyImprovementData, getCommunicationData } from "./ipfs";
 
 // Function to get all wallet addresses from environment variables
 export function getAllowedSubmitters(): string[] {
@@ -270,6 +272,14 @@ export function createCompanyEntity(companyId: string, companyData: any, propert
     id: companyId,
     name: companyData.name || undefined,
     request_identifier: companyData.request_identifier || undefined,
+    // Extended fields (optional)
+    source_http_request_method: companyData.source_http_request_method || undefined,
+    source_http_request_url: companyData.source_http_request_url || undefined,
+    source_http_request_headers_json: companyData.source_http_request_headers_json || undefined,
+    source_http_request_body: companyData.source_http_request_body || undefined,
+    source_http_request_json: companyData.source_http_request_json || undefined,
+    source_http_request_multi_value_query_string_json: companyData.source_http_request_multi_value_query_string_json || undefined,
+    property_improvement_id: undefined,
     property_id: propertyId
   };
 }
@@ -336,6 +346,41 @@ export function createDeedEntity(deedId: string, deedData: any, salesHistoryId?:
     id: deedId,
     deed_type: deedData.deed_type,
     sales_history_id: salesHistoryId || undefined
+  };
+}
+
+// Helper to create PropertyImprovement entity
+export function createPropertyImprovementEntity(
+  improvementId: string,
+  improvementData: any,
+  propertyId: string
+): PropertyImprovement {
+  return {
+    id: improvementId,
+    request_identifier: improvementData.request_identifier || undefined,
+    description: improvementData.description || undefined,
+    improvement_type: improvementData.improvement_type || undefined,
+    improvement_status: improvementData.improvement_status || undefined,
+    contractor_type: improvementData.contractor_type || undefined,
+    permit_number: improvementData.permit_number || undefined,
+    permit_status: improvementData.permit_status || undefined,
+    permit_required: improvementData.permit_required || undefined,
+    permit_issue_date: improvementData.permit_issue_date || undefined,
+    permit_expiration_date: improvementData.permit_expiration_date || undefined,
+    contractor_name: improvementData.contractor_name || undefined,
+    contractor_license: improvementData.contractor_license || undefined,
+    estimated_cost_amount: improvementData.estimated_cost_amount || undefined,
+    completion_date: improvementData.completion_date || undefined,
+    source_http_request_method: improvementData.source_http_request_method || undefined,
+    source_http_request_url: improvementData.source_http_request_url || undefined,
+    source_http_request_headers_json: improvementData.source_http_request_headers_json || undefined,
+    source_http_request_body: improvementData.source_http_request_body || undefined,
+    source_http_request_json: improvementData.source_http_request_json || undefined,
+    source_http_request_multi_value_query_string_json: improvementData.source_http_request_multi_value_query_string_json || undefined,
+    file_id: improvementData.file_id || undefined,
+    property_cid: undefined,
+    property_hash: undefined,
+    property_id: propertyId,
   };
 }
 
@@ -800,4 +845,234 @@ export async function processCountyData(context: any, metadata: any, cid: string
     fileEntities,
     deedEntities
   };
+}
+
+// Process Property Improvement via property_has_property_improvement
+export async function processPropertyImprovementData(context: any, metadata: any, mainEntityId: string) {
+  const improvementRefs = metadata.relationships?.property_has_property_improvement || [];
+  const relPromises: Promise<any>[] = [];
+
+  context.log.info("PI: found relationship refs", {
+    count: improvementRefs.length,
+    mainEntityId,
+  });
+
+  for (const ref of improvementRefs) {
+    const relCid = ref?.["/"];
+    if (relCid) {
+      relPromises.push(
+        context.effect(getRelationshipData, relCid)
+          .then((data: any) => ({ type: 'improvement_rel', data, cid: relCid }))
+          .catch((error: any) => ({ type: 'improvement_rel', error, cid: relCid }))
+      );
+    }
+  }
+
+  const rels = await Promise.all(relPromises);
+  const improvementCids: string[] = [];
+  let resolvedPropertyId: string | undefined;
+  let resolvedParcelIdentifier: string | undefined;
+  const contractorRelationshipCids: string[] = [];
+
+  for (const r of rels) {
+    if (r.error) {
+      context.log.warn(`Failed to fetch improvement relationship`, { cid: r.cid, error: r.error.message });
+      continue;
+    }
+    const toCid = r.data.to?.["/"];
+    if (toCid) improvementCids.push(toCid);
+
+    context.log.info("PI: relationship resolved", {
+      relationshipCid: r.cid,
+      fromCid: r.data.from?.["/"],
+      toCid: r.data.to?.["/"],
+    });
+
+    // Try to resolve property from 'from' side (property_has_property_improvement: from=property, to=improvement)
+    const fromCid = r.data.from?.["/"];
+    if (!resolvedPropertyId && fromCid) {
+      try {
+        const propData = await context.effect(getPropertyData, fromCid);
+        const existingProperty = await context.Property.get(fromCid);
+        if (!existingProperty) {
+          const propertyEntity = createPropertyEntity(fromCid, propData);
+          context.Property.set(propertyEntity);
+          context.log.info("PI: created property from relationship", { fromCid });
+        } else {
+          context.log.info("PI: using existing property from relationship (no update)", { fromCid });
+        }
+        resolvedPropertyId = fromCid;
+        if (propData?.parcel_identifier) {
+          resolvedParcelIdentifier = propData.parcel_identifier;
+        }
+
+        context.log.info("PI: resolved property from relationship", {
+          fromCid,
+          resolvedPropertyId,
+          resolvedParcelIdentifier,
+        });
+      } catch (e) {
+        context.log.warn(`Failed to fetch property data for improvement relationship`, { fromCid, error: (e as Error).message });
+      }
+    }
+  }
+
+  // Fallback: derive improvement CIDs from property_improvement_has_contractor when no property_has_property_improvement present
+  if (improvementCids.length === 0) {
+    const contractorRefs = metadata.relationships?.property_improvement_has_contractor || [];
+    context.log.info("PI: fallback - deriving improvements from contractor relationships", {
+      contractorRefCount: contractorRefs.length,
+    });
+    for (const ref of contractorRefs) {
+      const relCid = ref?.["/"];
+      if (!relCid) continue;
+      try {
+        const rel = await context.effect(getRelationshipData, relCid);
+        const improvementFromCid = rel.from?.["/"];
+        if (improvementFromCid && !improvementCids.includes(improvementFromCid)) {
+          improvementCids.push(improvementFromCid);
+          context.log.info("PI: fallback - discovered improvement from contractor rel", {
+            relationshipCid: relCid,
+            improvementCid: improvementFromCid,
+          });
+        }
+      } catch (e) {
+        context.log.warn("PI: fallback - failed to read contractor relationship", { relCid, error: (e as Error).message });
+      }
+    }
+  }
+
+  // Resolve property from prior data first using PropertyHashMap if mainEntityId is a propertyHash
+  let effectivePropertyId = resolvedParcelIdentifier || resolvedPropertyId || undefined;
+  try {
+    const priorMap = await context.PropertyHashMap.get(mainEntityId);
+    if (priorMap?.property_id) {
+      effectivePropertyId = priorMap.property_id;
+      context.log.info("PI: resolved property from prior map", { mainEntityId, effectivePropertyId });
+    }
+  } catch {}
+  // Do not create or override Property when PI lacks resolvable property; rely on existing data if present
+
+  const dataPromises: Promise<any>[] = improvementCids.map((c) =>
+    context.effect(getPropertyImprovementData, c)
+      .then((data: any) => ({ cid: c, data }))
+      .catch((error: any) => ({ cid: c, error }))
+  );
+
+  const results = await Promise.all(dataPromises);
+  // Determine a normalized permit number to serve as a stable PI identifier
+  let permitNumberNormalized: string | undefined;
+  const normalizePermit = (p: any): string | undefined => {
+    if (!p) return undefined;
+    const s = String(p).trim();
+    if (!s) return undefined;
+    return s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  };
+  for (const r of results) {
+    if (r.error) {
+      context.log.warn(`Failed to fetch improvement data`, { cid: r.cid, error: r.error.message });
+      continue;
+    }
+    // Use normalized permit number as the PropertyImprovement ID; fallback to CID if missing
+    const normalizedPermitForEntity = normalizePermit(r.data?.permit_number);
+    if (!permitNumberNormalized) {
+      permitNumberNormalized = normalizedPermitForEntity;
+    }
+    const improvementId = normalizedPermitForEntity || r.cid;
+    // If unresolved, try to backfill property_id from an existing PI with same permit (id)
+    let fallbackPropertyId: string | undefined = effectivePropertyId;
+    if (!fallbackPropertyId && normalizedPermitForEntity) {
+      try {
+        const existingPi = await context.PropertyImprovement.get(normalizedPermitForEntity);
+        if (existingPi?.property_id) {
+          fallbackPropertyId = existingPi.property_id;
+          context.log.info("PI: backfilled property_id from existing PI by permit", {
+            permit: normalizedPermitForEntity,
+            property_id: fallbackPropertyId,
+          });
+        }
+      } catch {}
+    }
+
+    const baseImprovement: PropertyImprovement = createPropertyImprovementEntity(
+      improvementId,
+      r.data,
+      fallbackPropertyId || undefined as any
+    );
+    const pi: PropertyImprovement = {
+      ...baseImprovement,
+      // resolvedPropertyId is the property CID when available
+      property_cid: resolvedPropertyId || undefined,
+      // mainEntityId is the on-chain propertyHash passed in to this function
+      property_hash: mainEntityId,
+    };
+    context.PropertyImprovement.set(pi);
+    context.log.info("PI: created improvement", { id: pi.id, property_id: pi.property_id });
+
+    // Process property_improvement_has_contractor relationships for this improvement
+    const contractorRefs = metadata.relationships?.property_improvement_has_contractor || [];
+    for (const ref of contractorRefs) {
+      const contractorRelCid = ref?.["/"];
+      if (!contractorRelCid) continue;
+      try {
+        const rel = await context.effect(getRelationshipData, contractorRelCid);
+        // Ensure this contractor relationship belongs to this specific improvement
+        const contractorFromCid = rel.from?.["/"];
+        if (contractorFromCid && contractorFromCid !== r.cid) {
+          continue;
+        }
+        const contractorCid = rel.to?.["/"];
+        if (!contractorCid) continue;
+
+        // Fetch company data and create contractor company linked to PI
+        const companyData = await context.effect(getCompanyData, contractorCid);
+        const contractorCompany: Company = {
+          id: contractorCid,
+          name: companyData.name || undefined,
+          request_identifier: companyData.request_identifier || undefined,
+          source_http_request_method: (companyData as any).source_http_request_method || undefined,
+          source_http_request_url: (companyData as any).source_http_request_url || undefined,
+          source_http_request_headers_json: (companyData as any).source_http_request_headers_json || undefined,
+          source_http_request_body: (companyData as any).source_http_request_body || undefined,
+          source_http_request_json: (companyData as any).source_http_request_json || undefined,
+          source_http_request_multi_value_query_string_json: (companyData as any).source_http_request_multi_value_query_string_json || undefined,
+          property_improvement_id: pi.id,
+          property_id: pi.property_id,
+        };
+        context.Company.set(contractorCompany);
+
+        // Handle company_has_communication for this contractor
+        const commRefs = metadata.relationships?.company_has_communication || [];
+        for (const commRef of commRefs) {
+          const commRelCid = commRef?.["/"];
+          if (!commRelCid) continue;
+          try {
+            const commRel = await context.effect(getRelationshipData, commRelCid);
+            // Ensure communication belongs to this specific contractor company
+            const commFromCid = commRel.from?.["/"];
+            if (commFromCid && commFromCid !== contractorCompany.id) {
+              continue;
+            }
+            const commCid = commRel.to?.["/"];
+            if (!commCid) continue;
+            const commData = await context.effect(getCommunicationData, commCid);
+
+            const communicationEntity: Communication = {
+              id: commCid,
+              email_address: (commData as any).email_address || undefined,
+              phone_number: (commData as any).phone_number || undefined,
+              company_id: contractorCompany.id,
+              property_improvement_id: pi.id,
+            };
+            context.Communication.set(communicationEntity);
+          } catch (e) {
+            context.log.warn("PI: failed to process company communication", { commRelCid, error: (e as Error).message });
+          }
+        }
+      } catch (e) {
+        context.log.warn("PI: failed to process contractor relationship", { contractorRelCid, error: (e as Error).message });
+      }
+    }
+  }
+  return { propertyEntityId: effectivePropertyId, permitNumberNormalized };
 }

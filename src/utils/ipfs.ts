@@ -6,6 +6,7 @@ import {
     addressSchema,
     propertySchema,
     ipfsFactSheetSchema,
+    propertyImprovementSchema,
     lotDataSchema,
     salesHistorySchema,
     taxSchema,
@@ -13,6 +14,7 @@ import {
     floodStormInformationSchema,
     personSchema,
     companySchema,
+    communicationSchema,
     layoutSchema,
     fileSchema,
     deedSchema,
@@ -22,6 +24,7 @@ import {
     type AddressData,
     type PropertyData,
     type IpfsFactSheetData,
+    type PropertyImprovementData,
     type LotData,
     type SalesHistoryData,
     type TaxData,
@@ -29,6 +32,7 @@ import {
     type FloodStormInformationData,
     type PersonData,
     type CompanyData,
+    type CommunicationData,
     type LayoutData,
     type FileData,
     type DeedData
@@ -747,6 +751,34 @@ export const getCompanyData = experimental_createEffect(
             (data: any) => ({
                 name: data.name || undefined,
                 request_identifier: data.request_identifier || undefined,
+                source_http_request_method: data.source_http_request?.method || undefined,
+                source_http_request_url: data.source_http_request?.url || undefined,
+                source_http_request_headers_json: data.source_http_request?.headers ? JSON.stringify(data.source_http_request.headers) : undefined,
+                source_http_request_body: data.source_http_request?.body || undefined,
+                source_http_request_json: data.source_http_request?.json ? JSON.stringify(data.source_http_request.json) : undefined,
+                source_http_request_multi_value_query_string_json: data.source_http_request?.multiValueQueryString ? JSON.stringify(data.source_http_request.multiValueQueryString) : undefined,
+            })
+        );
+    }
+);
+
+// Fetch communication data
+export const getCommunicationData = experimental_createEffect(
+    {
+        name: "getCommunicationData",
+        input: S.string,
+        output: communicationSchema,
+        cache: true,
+    },
+    async ({ input: cid, context }) => {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "communication data",
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
+                email_address: data.email_address || undefined,
+                phone_number: data.phone_number || undefined,
             })
         );
     }
@@ -844,6 +876,47 @@ export const getDeedData = experimental_createEffect(
             (data: any) => data && typeof data === 'object',
             (data: any) => ({
                 deed_type: data.deed_type,
+            })
+        );
+    }
+);
+
+// Fetch property improvement data
+export const getPropertyImprovementData = experimental_createEffect(
+    {
+        name: "getPropertyImprovementData",
+        input: S.string,
+        output: propertyImprovementSchema,
+        cache: true,
+    },
+    async ({ input: cid, context }) => {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "property improvement data",
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
+                request_identifier: data.request_identifier || undefined,
+                description: data.description || undefined,
+                improvement_type: data.improvement_type || undefined,
+                improvement_status: data.improvement_status || undefined,
+                contractor_type: data.contractor_type || undefined,
+                permit_number: data.permit_number || undefined,
+                permit_status: data.permit_status || undefined,
+                permit_required: data.permit_required || undefined,
+                permit_issue_date: data.permit_issue_date || undefined,
+                permit_expiration_date: data.permit_expiration_date || undefined,
+                contractor_name: data.contractor_name || undefined,
+                contractor_license: data.contractor_license || undefined,
+                estimated_cost_amount: data.estimated_cost_amount || undefined,
+                completion_date: data.completion_date || undefined,
+                source_http_request_method: data.source_http_request?.method || undefined,
+                source_http_request_url: data.source_http_request?.url || undefined,
+                source_http_request_headers_json: data.source_http_request?.headers ? JSON.stringify(data.source_http_request.headers) : undefined,
+                source_http_request_body: data.source_http_request?.body || undefined,
+                source_http_request_json: data.source_http_request?.json ? JSON.stringify(data.source_http_request.json) : undefined,
+                source_http_request_multi_value_query_string_json: data.source_http_request?.multiValueQueryString ? JSON.stringify(data.source_http_request.multiValueQueryString) : undefined,
+                file_id: data.file_id || undefined,
             })
         );
     }
