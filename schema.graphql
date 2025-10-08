@@ -94,9 +94,70 @@ type Tax {
   property_id: String!
 }
 
-
-
-
+type Structure {
+  id: ID!
+  roof_date: String
+  architectural_style_type: String
+  attachment_type: String
+  ceiling_condition: String
+  ceiling_height_average: Float
+  ceiling_insulation_type: String
+  ceiling_structure_material: String
+  ceiling_surface_material: String
+  exterior_door_installation_date: String
+  exterior_door_material: String
+  exterior_wall_condition: String
+  exterior_wall_insulation_type: String
+  exterior_wall_material_primary: String
+  exterior_wall_material_secondary: String
+  exterior_wall_insulation_type_primary: String
+  exterior_wall_insulation_type_secondary: String
+  finished_base_area: Float
+  finished_basement_area: Float
+  finished_upper_story_area: Float
+  flooring_condition: String
+  flooring_material_primary: String
+  flooring_material_secondary: String
+  foundation_condition: String
+  foundation_material: String
+  foundation_repair_date: String
+  foundation_type: String
+  foundation_waterproofing: String
+  gutters_condition: String
+  gutters_material: String
+  interior_door_material: String
+  interior_wall_condition: String
+  interior_wall_finish_primary: String
+  interior_wall_finish_secondary: String
+  interior_wall_structure_material: String
+  interior_wall_structure_material_primary: String
+  interior_wall_structure_material_secondary: String
+  interior_wall_surface_material_primary: String
+  interior_wall_surface_material_secondary: String
+  number_of_buildings: Float
+  number_of_stories: Float
+  primary_framing_material: String
+  request_identifier: String
+  roof_age_years: Float
+  roof_condition: String
+  roof_covering_material: String
+  roof_design_type: String
+  roof_material_type: String
+  roof_structure_material: String
+  roof_underlayment_type: String
+  secondary_framing_material: String
+  siding_installation_date: String
+  structural_damage_indicators: String
+  subfloor_material: String
+  unfinished_base_area: Float
+  unfinished_basement_area: Float
+  unfinished_upper_story_area: Float
+  window_frame_material: String
+  window_glazing_type: String
+  window_installation_date: String
+  window_operation_type: String
+  window_screen_material: String
+}
 
 
 
@@ -114,6 +175,7 @@ type DataSubmittedWithLabel {
   address: Address
   property: Property
   ipfs: Ipfs
+  structure: Structure
   sales_history: [SalesHistory!]! @derivedFrom(field: "property_id")
   tax: [Tax!]! @derivedFrom(field: "property_id")
 }

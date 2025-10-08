@@ -9,6 +9,7 @@ import {
   Address,
   Property,
   Ipfs,
+  Structure
 } from "generated";
 
 import { bytes32ToCID, getIpfsMetadata, getPropertyData } from "./utils/ipfs";
@@ -137,6 +138,7 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
 
     // Initialize entity IDs that will be populated from IPFS data
     let addressId: string | undefined;
+    let structureId: string | undefined;
     let propertyDataId: string | undefined;
     let ipfsId: string | undefined;
 
@@ -145,6 +147,7 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
       const result = await processCountyData(context, metadata, cid, propertyId);
       if (result) {
         addressId = result.addressId;
+        structureId = result.structureId;
         propertyDataId = result.propertyDataId;
         ipfsId = result.ipfsId;
         parcelIdentifier = result.parcelIdentifier;
@@ -219,6 +222,7 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
       cid: cid,
       label: metadata.label,
       id_source: idSource,
+      structure_id: structureId,
       address_id: addressId,
       property_id: propertyDataId,
       ipfs_id: ipfsId,
@@ -232,6 +236,7 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
       label: metadata.label,
       idSource,
       addressId,
+      structureId,
       propertyDataId,
       isUpdate: !!existingEntityDS,
       datetime: labelEntity.datetime?.toString()
