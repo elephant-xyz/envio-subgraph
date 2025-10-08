@@ -39,7 +39,12 @@ ERC1967Proxy.DataGroupHeartBeat.handler(async ({ event, context }) => {
   const cid = bytes32ToCID(event.params.dataHash);
 
   try {
+    const metaStart = Date.now();
     const metadata = await context.effect(getIpfsMetadata, cid);
+    context.log.info("IPFS metadata phase fetched", {
+      cid,
+      durationMs: Date.now() - metaStart,
+    });
 
     // Skip if not County label
     if (metadata.label !== "County") {

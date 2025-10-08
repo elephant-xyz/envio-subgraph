@@ -72,8 +72,8 @@ export function bytes32ToCID(dataHashHex: string): string {
 function buildEndpoints() {
     // Use only the specified gateway with infinite retries
     return [{
-        url: "https://peach-rapid-ant-655.mypinata.cloud/ipfs",
-        token: "6g4oGMIsEbzBHVdZvNgP9cq8cyV6liC4GMm9ea41VhXq5A78UnYW6uDJoAaDG1Ji"
+        url: "https://tomato-wonderful-coyote-805.mypinata.cloud/ipfs",
+        token: "J-Rqi8bRPc3msLbp74Y31Se7imLsUruB6VDabqRf3lyo1_6NWS1QIXdHlSAx2sHc"
     }];
 }
 
