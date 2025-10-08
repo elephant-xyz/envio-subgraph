@@ -1,4 +1,5 @@
 import { experimental_createEffect, S, type EffectContext } from "envio";
+import pThrottle from "p-throttle";
 import {
     ipfsMetadataSchema,
     relationshipSchema,
@@ -17,6 +18,41 @@ import {
     type SalesHistoryData,
     type TaxData
 } from "./schemas";
+
+// Global rate limiter for IPFS requests - shared across ALL events in the batch
+// This ensures we stay under Pinata's 300 req/s limit
+const IPFS_RATE_LIMIT = 250; // Max 250 requests per second
+const throttle = pThrottle({
+    limit: IPFS_RATE_LIMIT,
+    interval: 1000, // per 1000ms (1 second)
+});
+console.log(`[IPFS Limiter] Global rate limiter created: ${IPFS_RATE_LIMIT} req/s`);
+
+// Request tracking for monitoring
+let requestCount = 0;
+let lastLogTime = Date.now();
+let activeRequests = 0;
+let peakActiveRequests = 0;
+let totalQueued = 0;
+
+function trackRequest() {
+    requestCount++;
+    const now = Date.now();
+    const elapsed = now - lastLogTime;
+
+    // Log every second
+    if (elapsed >= 1000) {
+        const requestsPerSecond = (requestCount / elapsed) * 1000;
+        console.log(
+            `[IPFS Rate] ${requestsPerSecond.toFixed(1)} req/s (limit: ${IPFS_RATE_LIMIT}) | ` +
+            `Active: ${activeRequests} | ` +
+            `Peak: ${peakActiveRequests}`
+        );
+        requestCount = 0;
+        lastLogTime = now;
+        peakActiveRequests = 0; // Reset peak each interval
+    }
+}
 
 // Convert bytes32 to CID (same as subgraph implementation)
 //
@@ -74,8 +110,8 @@ export function bytes32ToCID(dataHashHex: string): string {
 function buildEndpoints() {
     // Use only the specified gateway with infinite retries
     return [{
-        url: "https://maroon-ready-rooster-237.mypinata.cloud/ipfs",
-        token: "pE_aFn_OMobMfmayHdoRYV_MRQ_ECYbzI4XGsKNV4x4VkuQiUUeNmFVRbiCwYb73"
+        url: "https://peach-rapid-ant-655.mypinata.cloud/ipfs",
+        token: "6g4oGMIsEbzBHVdZvNgP9cq8cyV6liC4GMm9ea41VhXq5A78UnYW6uDJoAaDG1Ji"
     }];
 }
 
@@ -155,7 +191,23 @@ async function fetchDataWithInfiniteRetry<T>(
 
             try {
                 const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
-                const response = await fetch(fullUrl);
+
+                // Use rate limiter to stay under 300 req/s (250 req/s with headroom)
+                const throttledFetch = throttle(async () => {
+                    activeRequests++;
+                    if (activeRequests > peakActiveRequests) {
+                        peakActiveRequests = activeRequests;
+                    }
+                    trackRequest();
+
+                    try {
+                        return await fetch(fullUrl);
+                    } finally {
+                        activeRequests--;
+                    }
+                });
+
+                const response = await throttledFetch();
 
                 if (response.ok) {
                     const data: any = await response.json();
@@ -316,7 +368,23 @@ async function fetchDataWithLimitedRetry<T>(
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
             try {
                 const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
-                const response = await fetch(fullUrl);
+
+                // Use rate limiter to stay under 300 req/s (250 req/s with headroom)
+                const throttledFetch = throttle(async () => {
+                    activeRequests++;
+                    if (activeRequests > peakActiveRequests) {
+                        peakActiveRequests = activeRequests;
+                    }
+                    trackRequest();
+
+                    try {
+                        return await fetch(fullUrl);
+                    } finally {
+                        activeRequests--;
+                    }
+                });
+
+                const response = await throttledFetch();
 
                 if (response.ok) {
                     const data: any = await response.json();

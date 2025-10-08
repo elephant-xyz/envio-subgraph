@@ -6,10 +6,10 @@ import {
   ERC1967Proxy_DataGroupHeartBeat,
   ERC1967Proxy_DataSubmitted,
   DataSubmittedWithLabel,
+  Structure,
   Address,
   Property,
   Ipfs,
-  Structure
 } from "generated";
 
 import { bytes32ToCID, getIpfsMetadata, getPropertyData } from "./utils/ipfs";
@@ -19,8 +19,8 @@ import { getAllowedSubmitters, processCountyData } from "./utils/eventHelpers";
 const allowedSubmitters = getAllowedSubmitters();
 
 ERC1967Proxy.DataGroupHeartBeat.handler(async ({ event, context }) => {
+  // Note: Cannot use eventFilters for submitter since it's not an indexed parameter
   if (!allowedSubmitters.includes(event.params.submitter)) {
-    // Skipping HeartBeat event - only processing events from specific submitters
     return;
   }
 
@@ -112,11 +112,7 @@ ERC1967Proxy.DataGroupHeartBeat.handler(async ({ event, context }) => {
 });
 
 ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
-  if (!allowedSubmitters.includes(event.params.submitter)) {
-    // Skipping DataSubmitted event - only processing events from specific submitters
-    return;
-  }
-
+  // Topic filtering applied via eventFilters - only allowed submitters reach this handler
   const entity: ERC1967Proxy_DataSubmitted = {
     id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
     propertyHash: event.params.propertyHash,
@@ -137,8 +133,8 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
     let parcelIdentifier: string | undefined;
 
     // Initialize entity IDs that will be populated from IPFS data
-    let addressId: string | undefined;
     let structureId: string | undefined;
+    let addressId: string | undefined;
     let propertyDataId: string | undefined;
     let ipfsId: string | undefined;
 
@@ -146,8 +142,8 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
       // Process County data first to get parcel_identifier
       const result = await processCountyData(context, metadata, cid, propertyId);
       if (result) {
-        addressId = result.addressId;
         structureId = result.structureId;
+        addressId = result.addressId;
         propertyDataId = result.propertyDataId;
         ipfsId = result.ipfsId;
         parcelIdentifier = result.parcelIdentifier;
@@ -235,8 +231,8 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
       propertyHash: event.params.propertyHash,
       label: metadata.label,
       idSource,
-      addressId,
       structureId,
+      addressId,
       propertyDataId,
       isUpdate: !!existingEntityDS,
       datetime: labelEntity.datetime?.toString()
@@ -247,4 +243,4 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
       error: (error as Error).message
     });
   }
-});
+}, { eventFilters: { submitter: allowedSubmitters } });
