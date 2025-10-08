@@ -72,8 +72,8 @@ export function bytes32ToCID(dataHashHex: string): string {
 function buildEndpoints() {
     // Use only the specified gateway with infinite retries
     return [{
-        url: "https://maroon-ready-rooster-237.mypinata.cloud/ipfs",
-        token: "pE_aFn_OMobMfmayHdoRYV_MRQ_ECYbzI4XGsKNV4x4VkuQiUUeNmFVRbiCwYb73"
+        url: "https://peach-rapid-ant-655.mypinata.cloud/ipfs",
+        token: "6g4oGMIsEbzBHVdZvNgP9cq8cyV6liC4GMm9ea41VhXq5A78UnYW6uDJoAaDG1Ji"
     }];
 }
 
@@ -150,6 +150,7 @@ async function fetchDataWithInfiniteRetry<T>(
         for (let i = 0; i < endpoints.length; i++) {
             const endpoint = endpoints[i];
             totalAttempts++;
+            const attemptStartMs = Date.now();
 
             try {
                 const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
@@ -158,25 +159,28 @@ async function fetchDataWithInfiniteRetry<T>(
                 if (response.ok) {
                     const data: any = await response.json();
                     if (validator(data)) {
-                        if (totalAttempts > 1) {
-                            context.log.info(`${dataType} fetch succeeded after ${totalAttempts} attempts`, {
-                                cid,
-                                endpoint: endpoint.url,
-                                totalAttempts
-                            });
-                        }
+                        const durationMs = Date.now() - attemptStartMs;
+                        context.log.info(`${dataType} fetch succeeded`, {
+                            cid,
+                            endpoint: endpoint.url,
+                            attempt: totalAttempts,
+                            durationMs
+                        });
                         return transformer(data);
                     } else {
+                        const durationMs = Date.now() - attemptStartMs;
                         context.log.warn(`${dataType} validation failed`, {
                             cid,
                             endpoint: endpoint.url,
-                            attempt: totalAttempts
+                            attempt: totalAttempts,
+                            durationMs
                         });
                     }
                 } else {
                     // Special-case: 404 should retry only 3 times, then error
                     if (response.status === 404) {
                         notFoundAttempts++;
+                        const durationMs = Date.now() - attemptStartMs;
                         if (notFoundAttempts < 3) {
                             context.log.warn(`${dataType} fetch returned 404, will retry`, {
                                 cid,
@@ -185,7 +189,8 @@ async function fetchDataWithInfiniteRetry<T>(
                                 statusText: response.statusText,
                                 attempt404: notFoundAttempts,
                                 maxAttempts404: 3,
-                                attempt: totalAttempts
+                                attempt: totalAttempts,
+                                durationMs
                             });
                             continue;
                         } else {
@@ -196,7 +201,8 @@ async function fetchDataWithInfiniteRetry<T>(
                                 statusText: response.statusText,
                                 attempt404: notFoundAttempts,
                                 maxAttempts404: 3,
-                                attempt: totalAttempts
+                                attempt: totalAttempts,
+                                durationMs
                             });
                             throw new Error(`${dataType} fetch failed with status 404 after 3 attempts`);
                         }
@@ -204,20 +210,24 @@ async function fetchDataWithInfiniteRetry<T>(
 
                     // Check if we should retry indefinitely
                     if (shouldRetryIndefinitely(response)) {
+                        const durationMs = Date.now() - attemptStartMs;
                         context.log.warn(`${dataType} fetch failed with retriable error, will retry indefinitely`, {
                             cid,
                             endpoint: endpoint.url,
                             status: response.status,
                             statusText: response.statusText,
-                            attempt: totalAttempts
+                            attempt: totalAttempts,
+                            durationMs
                         });
                     } else {
+                        const durationMs = Date.now() - attemptStartMs;
                         context.log.error(`${dataType} fetch failed with non-retriable error, stopping`, {
                             cid,
                             endpoint: endpoint.url,
                             status: response.status,
                             statusText: response.statusText,
-                            attempt: totalAttempts
+                            attempt: totalAttempts,
+                            durationMs
                         });
                         throw new Error(`${dataType} fetch failed with non-retriable status ${response.status}: ${response.statusText}`);
                     }
@@ -228,6 +238,7 @@ async function fetchDataWithInfiniteRetry<T>(
                     throw error;
                 }
                 const cause = (error as any)?.cause;
+                const durationMs = Date.now() - attemptStartMs;
 
                 // Extract detailed error information
                 const errorDetails = {
@@ -258,11 +269,12 @@ async function fetchDataWithInfiniteRetry<T>(
                 };
 
                 if (shouldRetryIndefinitely(undefined, error)) {
-                    context.log.warn(`${dataType} fetch failed with retriable connection error, will retry indefinitely`, errorDetails);
+                    context.log.warn(`${dataType} fetch failed with retriable connection error, will retry indefinitely`, { ...errorDetails, durationMs });
                 } else {
                     context.log.error(`${dataType} fetch failed with non-retriable error, stopping`, {
                         ...errorDetails,
-                        errorStringified: JSON.stringify(error, Object.getOwnPropertyNames(error))
+                        errorStringified: JSON.stringify(error, Object.getOwnPropertyNames(error)),
+                        durationMs
                     });
                     throw new Error(`${dataType} fetch failed with non-retriable error: ${error.message}`);
                 }
