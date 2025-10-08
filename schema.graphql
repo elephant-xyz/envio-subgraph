@@ -222,7 +222,7 @@ type Company {
   source_http_request_body: String
   source_http_request_json: String
   source_http_request_multi_value_query_string_json: String
-  property_id: String!
+  property_id: String
   property_improvement_id: String
   communications: [Communication!]! @derivedFrom(field: "company_id")
 }
@@ -311,7 +311,7 @@ type PropertyImprovement {
   file_id: String
   property_cid: String
   property_hash: String
-  property_id: String!
+  property_id: String
   contractors: [Company!]! @derivedFrom(field: "property_improvement_id")
   communications: [Communication!]! @derivedFrom(field: "property_improvement_id")
 }
@@ -322,6 +322,12 @@ type Communication {
   phone_number: String
   company_id: String!
   property_improvement_id: String
+}
+
+# Map a propertyHash (on-chain) to a resolved property_id (e.g., parcel_identifier or property CID)
+type PropertyHashMap {
+  id: ID! # propertyHash
+  property_id: String!
 }
 
 type DataSubmittedWithLabel {

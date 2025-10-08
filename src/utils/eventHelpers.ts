@@ -893,8 +893,14 @@ export async function processPropertyImprovementData(context: any, metadata: any
     if (!resolvedPropertyId && fromCid) {
       try {
         const propData = await context.effect(getPropertyData, fromCid);
-        const propertyEntity = createPropertyEntity(fromCid, propData);
-        context.Property.set(propertyEntity);
+        const existingProperty = await context.Property.get(fromCid);
+        if (!existingProperty) {
+          const propertyEntity = createPropertyEntity(fromCid, propData);
+          context.Property.set(propertyEntity);
+          context.log.info("PI: created property from relationship", { fromCid });
+        } else {
+          context.log.info("PI: using existing property from relationship (no update)", { fromCid });
+        }
         resolvedPropertyId = fromCid;
         if (propData?.parcel_identifier) {
           resolvedParcelIdentifier = propData.parcel_identifier;
@@ -936,32 +942,16 @@ export async function processPropertyImprovementData(context: any, metadata: any
     }
   }
 
-  // Prefer parcel_identifier (County-scoped id), then property CID, fallback to propertyHash
-  const effectivePropertyId = resolvedParcelIdentifier || resolvedPropertyId || mainEntityId;
-  if (!resolvedPropertyId) {
-    const existing = await context.Property.get(effectivePropertyId);
-    if (!existing) {
-      const stub: Property = {
-        id: effectivePropertyId,
-        property_type: undefined,
-        property_structure_built_year: undefined,
-        property_effective_built_year: undefined,
-        parcel_identifier: undefined,
-        area_under_air: undefined,
-        historic_designation: undefined,
-        livable_floor_area: undefined,
-        number_of_units: undefined,
-        number_of_units_type: undefined,
-        property_legal_description_text: undefined,
-        request_identifier: undefined,
-        subdivision: undefined,
-        total_area: undefined,
-        zoning: undefined,
-      };
-      context.Property.set(stub);
-      context.log.info("PI: created stub property", { propertyId: effectivePropertyId });
+  // Resolve property from prior data first using PropertyHashMap if mainEntityId is a propertyHash
+  let effectivePropertyId = resolvedParcelIdentifier || resolvedPropertyId || undefined;
+  try {
+    const priorMap = await context.PropertyHashMap.get(mainEntityId);
+    if (priorMap?.property_id) {
+      effectivePropertyId = priorMap.property_id;
+      context.log.info("PI: resolved property from prior map", { mainEntityId, effectivePropertyId });
     }
-  }
+  } catch {}
+  // Do not create or override Property when PI lacks resolvable property; rely on existing data if present
 
   const dataPromises: Promise<any>[] = improvementCids.map((c) =>
     context.effect(getPropertyImprovementData, c)
@@ -983,10 +973,32 @@ export async function processPropertyImprovementData(context: any, metadata: any
       context.log.warn(`Failed to fetch improvement data`, { cid: r.cid, error: r.error.message });
       continue;
     }
+    // Use normalized permit number as the PropertyImprovement ID; fallback to CID if missing
+    const normalizedPermitForEntity = normalizePermit(r.data?.permit_number);
     if (!permitNumberNormalized) {
-      permitNumberNormalized = normalizePermit(r.data?.permit_number);
+      permitNumberNormalized = normalizedPermitForEntity;
     }
-    const baseImprovement: PropertyImprovement = createPropertyImprovementEntity(r.cid, r.data, effectivePropertyId);
+    const improvementId = normalizedPermitForEntity || r.cid;
+    // If unresolved, try to backfill property_id from an existing PI with same permit (id)
+    let fallbackPropertyId: string | undefined = effectivePropertyId;
+    if (!fallbackPropertyId && normalizedPermitForEntity) {
+      try {
+        const existingPi = await context.PropertyImprovement.get(normalizedPermitForEntity);
+        if (existingPi?.property_id) {
+          fallbackPropertyId = existingPi.property_id;
+          context.log.info("PI: backfilled property_id from existing PI by permit", {
+            permit: normalizedPermitForEntity,
+            property_id: fallbackPropertyId,
+          });
+        }
+      } catch {}
+    }
+
+    const baseImprovement: PropertyImprovement = createPropertyImprovementEntity(
+      improvementId,
+      r.data,
+      fallbackPropertyId || undefined as any
+    );
     const pi: PropertyImprovement = {
       ...baseImprovement,
       // resolvedPropertyId is the property CID when available

@@ -57,7 +57,12 @@ ERC1967Proxy.DataGroupHeartBeat.handler(async ({ event, context }) => {
       return;
     }
 
-    const propertyId = event.params.propertyHash;
+    // Resolve propertyId from prior data (PropertyHashMap) if present
+    let propertyId = propertyHash;
+    const priorMap = await context.PropertyHashMap.get(propertyHash);
+    if (priorMap?.property_id) {
+      propertyId = priorMap.property_id;
+    }
     let parcelIdentifier: string | undefined;
 
     // Process County data to get parcel_identifier
@@ -179,6 +184,9 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
         }
 
         const mainEntityId = parcelIdentifier;
+        // Persist mapping from propertyHash -> resolved parcel identifier for future PI events
+        const mapEntity = { id: event.params.propertyHash, property_id: mainEntityId } as any;
+        context.PropertyHashMap.set(mapEntity);
 
         // Re-process sales history with correct mainEntityId if parcelIdentifier exists
         if (parcelIdentifier && parcelIdentifier !== propertyId) {
