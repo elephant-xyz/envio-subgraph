@@ -8,6 +8,8 @@ To create a new deployment in Envio:
 
 
 
+
+
 1. **Open Envio Dashboard**: Go to [Envio](https://envio.dev) and select your indexer 
 2. **Update Git Settings**: 
    - Open **Settings**
