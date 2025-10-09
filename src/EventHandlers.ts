@@ -18,7 +18,11 @@ import { getAllowedSubmitters, processCountyData } from "./utils/eventHelpers";
 const allowedSubmitters = getAllowedSubmitters();
 
 ERC1967Proxy.DataGroupHeartBeat.handler(async ({ event, context }) => {
-  // Topic filtering applied via eventFilters - only allowed submitters reach this handler
+  // Manual check required since submitter is not an indexed parameter
+  if (!allowedSubmitters.includes(event.params.submitter)) {
+    return;
+  }
+
   const entity: ERC1967Proxy_DataGroupHeartBeat = {
     id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
     propertyHash: event.params.propertyHash,
@@ -109,7 +113,7 @@ ERC1967Proxy.DataGroupHeartBeat.handler(async ({ event, context }) => {
       error: (error as Error).message
     });
   }
-}, { eventFilters: { submitter: allowedSubmitters } });
+});
 
 ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
   // Topic filtering applied via eventFilters - only allowed submitters reach this handler
