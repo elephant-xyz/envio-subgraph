@@ -1,4 +1,5 @@
 import { experimental_createEffect, S, type EffectContext } from "envio";
+import pThrottle from "p-throttle";
 import {
     ipfsMetadataSchema,
     relationshipSchema,
@@ -16,8 +17,83 @@ import {
     type TaxData
 } from "./schemas";
 
+// Environment variable configuration for each data type
+interface DataTypeConfig {
+    gateway: string;
+    token: string | null;
+    enabled: boolean;
+    throttle: ReturnType<typeof pThrottle>;
+}
+
+const RATE_LIMIT = 300; // 300 req/s per gateway
+
+// Read configuration from environment variables
+function loadDataTypeConfig(dataType: string): DataTypeConfig | null {
+    const gatewayKey = `ENVIO_${dataType.toUpperCase()}_IPFS_GATEWAY`;
+    const tokenKey = `ENVIO_${dataType.toUpperCase()}_GATEWAY_TOKEN`;
+
+    const gateway = process.env[gatewayKey];
+    const token = process.env[tokenKey] || null;
+
+    if (!gateway) {
+        console.log(`[Config] ${dataType} data type not configured (missing ${gatewayKey})`);
+        return null;
+    }
+
+    console.log(`[Config] ${dataType} data type enabled with gateway: ${gateway}`);
+
+    return {
+        gateway,
+        token,
+        enabled: true,
+        throttle: pThrottle({
+            limit: RATE_LIMIT,
+            interval: 1000, // per second
+        })
+    };
+}
+
+// Load all configurations
+const configs = {
+    address: loadDataTypeConfig('address'),
+    property: loadDataTypeConfig('property'),
+    sales_history: loadDataTypeConfig('sales_history'),
+    tax: loadDataTypeConfig('tax'),
+};
+
+// Validate that property is configured (REQUIRED - it provides metadata, relationships, and property data)
+if (!configs.property) {
+    const errorMsg = `[Config] ERROR: Property configuration is REQUIRED!
+  Please set:
+  - ENVIO_PROPERTY_IPFS_GATEWAY
+  - ENVIO_PROPERTY_GATEWAY_TOKEN
+
+  Property gateway is used to fetch:
+  - Metadata (label, relationships)
+  - Property data (including parcel_identifier which is used as entity ID)
+  - Fact sheets
+
+  Without property configuration, the indexer cannot function.`;
+    console.error(errorMsg);
+    throw new Error(errorMsg);
+}
+
+// Create non-nullable property config for TypeScript
+const propertyConfig: DataTypeConfig = configs.property;
+
+// Log enabled optional data types
+const optionalDataTypes = Object.entries(configs)
+    .filter(([key, config]) => key !== 'property' && config !== null)
+    .map(([type, _]) => type);
+
+console.log(`[Config] Property data type enabled (REQUIRED): ${propertyConfig.gateway}`);
+if (optionalDataTypes.length > 0) {
+    console.log(`[Config] Optional data types enabled: ${optionalDataTypes.join(', ')}`);
+} else {
+    console.log(`[Config] Optional data types: none (only property will be indexed)`);
+}
+
 // Convert bytes32 to CID (same as subgraph implementation)
-//
 export function bytes32ToCID(dataHashHex: string): string {
     // Remove 0x prefix if present
     const cleanHex = dataHashHex.startsWith('0x') ? dataHashHex.slice(2) : dataHashHex;
@@ -68,17 +144,8 @@ export function bytes32ToCID(dataHashHex: string): string {
     return "b" + output;
 }
 
-// Build gateway configuration - use single specified gateway only
-function buildEndpoints() {
-    // Use only the specified gateway with infinite retries
-    return [{
-        url: "https://tomato-wonderful-coyote-805.mypinata.cloud/ipfs",
-        token: "J-Rqi8bRPc3msLbp74Y31Se7imLsUruB6VDabqRf3lyo1_6NWS1QIXdHlSAx2sHc"
-    }];
-}
-
-// Gateway configuration with optional authentication tokens
-const endpoints = buildEndpoints();
+// Export configuration for use in EventHandlers
+export const dataTypeConfigs = configs;
 
 // Helper function to build URL with optional token
 function buildGatewayUrl(baseUrl: string, cid: string, token: string | null): string {
@@ -135,246 +202,168 @@ async function waitWithBackoff(attempt: number): Promise<void> {
     await new Promise(resolve => setTimeout(resolve, delay));
 }
 
-// New infinite retry function for IPFS data fetching that never gives up on connection errors
+// Generic fetch function with config-specific rate limiting
 async function fetchDataWithInfiniteRetry<T>(
     context: EffectContext,
     cid: string,
     dataType: string,
+    config: DataTypeConfig,
     validator: (data: any) => boolean,
     transformer: (data: any) => T
 ): Promise<T> {
     let totalAttempts = 0;
-    let notFoundAttempts = 0; // count 404 attempts
+    let notFoundAttempts = 0;
 
     while (true) {
-        for (let i = 0; i < endpoints.length; i++) {
-            const endpoint = endpoints[i];
-            totalAttempts++;
-            const attemptStartMs = Date.now();
+        totalAttempts++;
+        const attemptStartMs = Date.now();
 
-            try {
-                const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
-                const response = await fetch(fullUrl);
+        try {
+            const fullUrl = buildGatewayUrl(config.gateway, cid, config.token);
 
-                if (response.ok) {
-                    const data: any = await response.json();
-                    if (validator(data)) {
-                        const durationMs = Date.now() - attemptStartMs;
-                        context.log.info(`${dataType} fetch succeeded`, {
+            // Use config-specific throttle (300 req/s per gateway)
+            const throttledFetch = config.throttle(async () => {
+                return await fetch(fullUrl);
+            });
+
+            const response = await throttledFetch();
+
+            if (response.ok) {
+                const data: any = await response.json();
+                if (validator(data)) {
+                    const durationMs = Date.now() - attemptStartMs;
+                    if (totalAttempts > 1) {
+                        context.log.info(`${dataType} fetch succeeded after ${totalAttempts} attempts`, {
                             cid,
-                            endpoint: endpoint.url,
-                            attempt: totalAttempts,
-                            durationMs
-                        });
-                        return transformer(data);
-                    } else {
-                        const durationMs = Date.now() - attemptStartMs;
-                        context.log.warn(`${dataType} validation failed`, {
-                            cid,
-                            endpoint: endpoint.url,
-                            attempt: totalAttempts,
+                            gateway: config.gateway,
                             durationMs
                         });
                     }
+                    return transformer(data);
                 } else {
-                    // Special-case: 404 should retry only 3 times, then error
-                    if (response.status === 404) {
-                        notFoundAttempts++;
-                        const durationMs = Date.now() - attemptStartMs;
-                        if (notFoundAttempts < 3) {
-                            context.log.warn(`${dataType} fetch returned 404, will retry`, {
-                                cid,
-                                endpoint: endpoint.url,
-                                status: response.status,
-                                statusText: response.statusText,
-                                attempt404: notFoundAttempts,
-                                maxAttempts404: 3,
-                                attempt: totalAttempts,
-                                durationMs
-                            });
-                            continue;
-                        } else {
-                            context.log.error(`${dataType} fetch returned 404 after 3 attempts, stopping`, {
-                                cid,
-                                endpoint: endpoint.url,
-                                status: response.status,
-                                statusText: response.statusText,
-                                attempt404: notFoundAttempts,
-                                maxAttempts404: 3,
-                                attempt: totalAttempts,
-                                durationMs
-                            });
-                            throw new Error(`${dataType} fetch failed with status 404 after 3 attempts`);
-                        }
-                    }
-
-                    // Check if we should retry indefinitely
-                    if (shouldRetryIndefinitely(response)) {
-                        const durationMs = Date.now() - attemptStartMs;
-                        context.log.warn(`${dataType} fetch failed with retriable error, will retry indefinitely`, {
+                    const durationMs = Date.now() - attemptStartMs;
+                    context.log.warn(`${dataType} validation failed`, {
+                        cid,
+                        gateway: config.gateway,
+                        attempt: totalAttempts,
+                        durationMs
+                    });
+                }
+            } else {
+                // Special-case: 404 should retry only 3 times, then error
+                if (response.status === 404) {
+                    notFoundAttempts++;
+                    const durationMs = Date.now() - attemptStartMs;
+                    if (notFoundAttempts < 3) {
+                        context.log.warn(`${dataType} fetch returned 404, will retry`, {
                             cid,
-                            endpoint: endpoint.url,
+                            gateway: config.gateway,
                             status: response.status,
-                            statusText: response.statusText,
+                            attempt404: notFoundAttempts,
                             attempt: totalAttempts,
                             durationMs
                         });
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        continue;
                     } else {
-                        const durationMs = Date.now() - attemptStartMs;
-                        context.log.error(`${dataType} fetch failed with non-retriable error, stopping`, {
+                        context.log.error(`${dataType} fetch returned 404 after 3 attempts, stopping`, {
                             cid,
-                            endpoint: endpoint.url,
+                            gateway: config.gateway,
                             status: response.status,
-                            statusText: response.statusText,
-                            attempt: totalAttempts,
                             durationMs
+                        });
+                        throw new Error(`${dataType} fetch failed with status 404 after 3 attempts`);
+                    }
+                }
+
+                // Check if we should retry indefinitely
+                if (shouldRetryIndefinitely(response)) {
+                    const durationMs = Date.now() - attemptStartMs;
+                    context.log.warn(`${dataType} fetch failed with retriable error, will retry`, {
+                        cid,
+                        gateway: config.gateway,
+                        status: response.status,
+                        attempt: totalAttempts,
+                        durationMs
+                    });
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                } else {
+                    const durationMs = Date.now() - attemptStartMs;
+                    context.log.error(`${dataType} fetch failed with non-retriable error, stopping`, {
+                        cid,
+                        gateway: config.gateway,
+                        status: response.status,
+                        attempt: totalAttempts,
+                        durationMs
                         });
                         throw new Error(`${dataType} fetch failed with non-retriable status ${response.status}: ${response.statusText}`);
                     }
                 }
-            } catch (e) {
-                const error = e as Error;
-                if (error.message.includes('fetch failed with non-retriable status')) {
-                    throw error;
-                }
-                const cause = (error as any)?.cause;
-                const durationMs = Date.now() - attemptStartMs;
-
-                // Extract detailed error information
-                const errorDetails = {
-                    cid,
-                    endpoint: endpoint.url,
-                    error: error.message,
-                    errorName: error.name,
-                    attempt: totalAttempts,
-                    fullUrl: buildGatewayUrl(endpoint.url, cid, endpoint.token),
-                    errorStack: error.stack,
-                    errorCause: cause,
-                    // Additional diagnostic info
-                    causeCode: cause?.code,
-                    causeErrno: cause?.errno,
-                    causeSystemCall: cause?.syscall,
-                    causeAddress: cause?.address,
-                    causePort: cause?.port,
-                    userAgent: 'Envio-Indexer/1.0',
-                    timestamp: new Date().toISOString(),
-                    // Network diagnostic hints
-                    possibleCause: error.message?.includes('ENOTFOUND') ? 'DNS_RESOLUTION_FAILED' :
-                                 error.message?.includes('ECONNREFUSED') ? 'CONNECTION_REFUSED' :
-                                 error.message?.includes('ETIMEDOUT') ? 'CONNECTION_TIMEOUT' :
-                                 error.message?.includes('ECONNRESET') ? 'CONNECTION_RESET' :
-                                 error.message?.includes('timeout') ? 'TIMEOUT' :
-                                 error.name === 'AbortError' ? 'REQUEST_ABORTED' :
-                                 'UNKNOWN_NETWORK_ERROR'
-                };
-
-                if (shouldRetryIndefinitely(undefined, error)) {
-                    context.log.warn(`${dataType} fetch failed with retriable connection error, will retry indefinitely`, { ...errorDetails, durationMs });
-                } else {
-                    context.log.error(`${dataType} fetch failed with non-retriable error, stopping`, {
-                        ...errorDetails,
-                        errorStringified: JSON.stringify(error, Object.getOwnPropertyNames(error)),
-                        durationMs
-                    });
-                    throw new Error(`${dataType} fetch failed with non-retriable error: ${error.message}`);
-                }
+        } catch (e) {
+            const error = e as Error;
+            if (error.message.includes('fetch failed with non-retriable status') || error.message.includes('404 after 3 attempts')) {
+                throw error;
             }
+            const cause = (error as any)?.cause;
+            const durationMs = Date.now() - attemptStartMs;
 
-            // No delay between gateways - try them as fast as possible
+            // Extract detailed error information
+            const errorDetails = {
+                cid,
+                gateway: config.gateway,
+                error: error.message,
+                errorName: error.name,
+                attempt: totalAttempts,
+                durationMs,
+                possibleCause: error.message?.includes('ENOTFOUND') ? 'DNS_RESOLUTION_FAILED' :
+                             error.message?.includes('ECONNREFUSED') ? 'CONNECTION_REFUSED' :
+                             error.message?.includes('ETIMEDOUT') ? 'CONNECTION_TIMEOUT' :
+                             error.message?.includes('ECONNRESET') ? 'CONNECTION_RESET' :
+                             error.message?.includes('timeout') ? 'TIMEOUT' :
+                             error.name === 'AbortError' ? 'REQUEST_ABORTED' :
+                             'UNKNOWN_NETWORK_ERROR'
+            };
+
+            if (shouldRetryIndefinitely(undefined, error)) {
+                context.log.warn(`${dataType} fetch failed with retriable connection error, will retry`, errorDetails);
+                await new Promise(resolve => setTimeout(resolve, 1500));
+            } else {
+                context.log.error(`${dataType} fetch failed with non-retriable error, stopping`, errorDetails);
+                throw new Error(`${dataType} fetch failed with non-retriable error: ${error.message}`);
+            }
         }
+    }
+}
 
-        // After trying all endpoints, wait a short time before starting another full cycle
-        context.log.info(`Completed full gateway cycle (${totalAttempts} attempts), waiting before retry`, {
+// ========================================
+// CONDITIONAL EFFECT EXPORTS
+// Only export effects for configured data types
+// ========================================
+
+// IPFS Metadata - uses property gateway (REQUIRED)
+export const getIpfsMetadata = experimental_createEffect(
+    {
+        name: "getIpfsMetadata",
+        input: S.string,
+        output: ipfsMetadataSchema,
+        cache: true,
+    },
+    async ({ input: cid, context }) => {
+        return fetchDataWithInfiniteRetry(
+            context,
             cid,
-            dataType,
-            totalAttempts
-        });
-        await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5 second delay between full cycles
+            "IPFS metadata",
+            propertyConfig,
+            (data) => data && typeof data === 'object' && data.label && typeof data.label === 'string',
+            (data) => ({
+                label: data.label,
+                relationships: data.relationships
+            })
+        );
     }
-}
+);
 
-// Helper function specifically for IPFS metadata with infinite retry
-async function fetchIpfsMetadataWithInfiniteRetry(
-    context: EffectContext,
-    cid: string
-): Promise<IpfsMetadata> {
-    return fetchDataWithInfiniteRetry(
-        context,
-        cid,
-        "IPFS metadata",
-        (data) => data && typeof data === 'object' && data.label && typeof data.label === 'string',
-        (data) => ({
-            label: data.label,
-            relationships: data.relationships
-        })
-    );
-}
-
-// DEPRECATED: This function has been replaced by fetchDataWithInfiniteRetry
-// Keeping only for getRelationshipData which needs limited retries
-async function fetchDataWithLimitedRetry<T>(
-    context: EffectContext,
-    cid: string,
-    dataType: string,
-    validator: (data: any) => boolean,
-    transformer: (data: any) => T,
-    maxAttempts: number = 3
-): Promise<T> {
-    for (let i = 0; i < endpoints.length; i++) {
-        const endpoint = endpoints[i];
-
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-            try {
-                const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
-                const response = await fetch(fullUrl);
-
-                if (response.ok) {
-                    const data: any = await response.json();
-                    if (validator(data)) {
-                        if (attempt > 0) {
-                            context.log.info(`${dataType} fetch succeeded on attempt ${attempt + 1}`, {
-                                cid,
-                                endpoint: endpoint.url
-                            });
-                        }
-                        return transformer(data);
-                    }
-                } else {
-                    context.log.warn(`${dataType} fetch failed - HTTP error`, {
-                        cid,
-                        endpoint: endpoint.url,
-                        status: response.status,
-                        statusText: response.statusText,
-                        attempt: attempt + 1,
-                        maxAttempts
-                    });
-                }
-            } catch (e) {
-                const error = e as Error;
-                context.log.warn(`Failed to fetch ${dataType}`, {
-                    cid,
-                    endpoint: endpoint.url,
-                    error: error.message,
-                    errorName: error.name,
-                    attempt: attempt + 1,
-                    maxAttempts
-                });
-            }
-
-            // Wait before retry (except on last attempt)
-            if (attempt < maxAttempts - 1) {
-                await waitWithBackoff(attempt);
-            }
-        }
-
-        // No delay between endpoints - try them as fast as possible
-    }
-
-    context.log.error(`Unable to fetch ${dataType} from all gateways`, { cid });
-    throw new Error(`Failed to fetch ${dataType} for CID: ${cid}`);
-}
-
-// Fetch relationship data (from/to structure)
+// Relationship data - uses property gateway (REQUIRED)
 export const getRelationshipData = experimental_createEffect(
     {
         name: "getRelationshipData",
@@ -387,16 +376,15 @@ export const getRelationshipData = experimental_createEffect(
             context,
             cid,
             "relationship data",
+            propertyConfig,
             (data: any) => data && data.to && data.to["/"],
             (data: any) => data
         );
     }
 );
 
-// Fetch structure data (roof_date)
-
-// Fetch address data
-export const getAddressData = experimental_createEffect(
+// Address data - conditional
+export const getAddressData = configs.address ? experimental_createEffect(
     {
         name: "getAddressData",
         input: S.string,
@@ -408,6 +396,7 @@ export const getAddressData = experimental_createEffect(
             context,
             cid,
             "address data",
+            configs.address!,
             (data: any) => data && typeof data === 'object',
             (data: any) => ({
                 request_identifier: data.request_identifier || undefined,
@@ -435,9 +424,9 @@ export const getAddressData = experimental_createEffect(
             })
         );
     }
-);
+) : null;
 
-// Fetch property data (property_type, built years)
+// Property data - uses property gateway (REQUIRED)
 export const getPropertyData = experimental_createEffect(
     {
         name: "getPropertyData",
@@ -450,6 +439,7 @@ export const getPropertyData = experimental_createEffect(
             context,
             cid,
             "property data",
+            propertyConfig,
             (data: any) => data && typeof data === 'object',
             (data: any) => ({
                 property_type: data.property_type || undefined,
@@ -471,45 +461,8 @@ export const getPropertyData = experimental_createEffect(
     }
 );
 
-
-// Fetch fact sheet data (ipfs_url and full_generation_command)
-export const getIpfsFactSheetData = experimental_createEffect(
-    {
-        name: "getIpfsFactSheetData",
-        input: S.string,
-        output: ipfsFactSheetSchema,
-        cache: true,
-    },
-    async ({ input: cid, context }) => {
-        return fetchDataWithInfiniteRetry(
-            context,
-            cid,
-            "fact sheet data",
-            (data: any) => data && typeof data === 'object',
-            (data: any) => ({
-                ipfs_url: data.ipfs_url || undefined,
-                full_generation_command: data.full_generation_command || undefined,
-            })
-        );
-    }
-);
-
-export const getIpfsMetadata = experimental_createEffect(
-    {
-        name: "getIpfsMetadata",
-        input: S.string,
-        output: ipfsMetadataSchema,
-        cache: true, // Enable caching for better performance
-    },
-    async ({ input: cid, context }) => {
-        return fetchIpfsMetadataWithInfiniteRetry(context, cid);
-    }
-);
-
-
-// Removed getLotData effect
-
-export const getSalesHistoryData = experimental_createEffect(
+// Sales History data - conditional
+export const getSalesHistoryData = configs.sales_history ? experimental_createEffect(
     {
         name: "getSalesHistoryData",
         input: S.string,
@@ -521,6 +474,7 @@ export const getSalesHistoryData = experimental_createEffect(
             context,
             cid,
             "sales history data",
+            configs.sales_history!,
             (data: any) => data && typeof data === 'object',
             (data: any) => ({
                 ownership_transfer_date: data.ownership_transfer_date || undefined,
@@ -530,9 +484,10 @@ export const getSalesHistoryData = experimental_createEffect(
             })
         );
     }
-);
+) : null;
 
-export const getTaxData = experimental_createEffect(
+// Tax data - conditional
+export const getTaxData = configs.tax ? experimental_createEffect(
     {
         name: "getTaxData",
         input: S.string,
@@ -544,6 +499,7 @@ export const getTaxData = experimental_createEffect(
             context,
             cid,
             "tax data",
+            configs.tax!,
             (data: any) => data && typeof data === 'object',
             (data: any) => ({
                 first_year_building_on_tax_roll: data.first_year_building_on_tax_roll || undefined,
@@ -562,13 +518,29 @@ export const getTaxData = experimental_createEffect(
             })
         );
     }
+) : null;
+
+// Fact sheet data - uses property gateway (REQUIRED)
+export const getIpfsFactSheetData = experimental_createEffect(
+    {
+        name: "getIpfsFactSheetData",
+        input: S.string,
+        output: ipfsFactSheetSchema,
+        cache: true,
+    },
+    async ({ input: cid, context }) => {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "fact sheet data",
+            propertyConfig,
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
+                ipfs_url: data.ipfs_url || undefined,
+                full_generation_command: data.full_generation_command || undefined,
+            })
+        );
+    }
 );
-
-
-// Removed getFloodStormData effect
-
-// Removed getPersonData effect
-
-// Removed getCompanyData effect
 
 
