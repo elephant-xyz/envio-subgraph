@@ -25,7 +25,7 @@ interface DataTypeConfig {
     throttle: ReturnType<typeof pThrottle>;
 }
 
-const RATE_LIMIT = 300; // 300 req/s per gateway
+const RATE_LIMIT = 280; // 280 req/s per gateway
 
 // Read configuration from environment variables
 function loadDataTypeConfig(dataType: string): DataTypeConfig | null {
