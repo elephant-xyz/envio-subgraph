@@ -59,7 +59,7 @@ To create a new deployment in Envio:
 - **Real-time Event Processing**: Monitors `DataSubmitted` and `DataGroupHeartBeat` events with event-level filtering
 - **Configurable IPFS Gateways**: Dedicated gateway configuration per data type (property, address, sales, tax)
 - **Selective Data Indexing**: Choose which data types to index by configuring their gateways
-- **Independent Rate Limiting**: Each gateway has its own 300 req/s rate limiter for optimal performance
+- **Direct HTTP Requests**: No rate limiting - requests are made directly to gateways as fast as possible
 - **Automatic Retry Logic**: Built-in retry with exponential backoff for failed IPFS requests
 - **Gateway Observability**: All logs include the gateway URL used for transparency
 - **Dynamic Wallet Filtering**: Configurable wallet address allowlist via environment variables with event-level filtering
@@ -133,7 +133,7 @@ ENVIO_WALLET_ADDRESS_2=0xabcdef1234567890abcdef1234567890abcdef12
 - **Property Gateway (REQUIRED)**: The `ENVIO_PROPERTY_*` configuration is mandatory. Without it, the indexer will fail at startup.
 - **Optional Data Types**: Address, Sales History, and Tax data types are optional. If not configured, those data types will be skipped during indexing.
 - **Gateway Tokens**: Tokens are optional. If your gateway doesn't require authentication, you can omit the token variables.
-- **Rate Limiting**: Each configured gateway has its own rate limiter at 300 requests/second.
+- **No Rate Limiting**: Requests are made directly to gateways without throttling. Each gateway handles requests as fast as possible.
 - **Wallet Allowlist**: The indexer will only process events from wallet addresses listed in the environment variables.
 - **Multiple Wallets**: You can add multiple wallet addresses using the pattern `ENVIO_WALLET_ADDRESS_*`.
 - **Security**: The indexer will crash on startup if no wallet addresses are found (this is intentional for security).
@@ -314,7 +314,7 @@ ENVIO_<DATA_TYPE>_GATEWAY_TOKEN=your-token-here  # Optional
 
 ### Features
 
-- **Independent Rate Limiting**: Each gateway has its own rate limiter (300 req/s)
+- **Direct HTTP Requests**: No rate limiting - each gateway handles requests as fast as possible
 - **Optional Authentication**: Tokens are only required if your gateway needs authentication
 - **Selective Data Fetching**: Only configured data types will be fetched and indexed
 - **Automatic Retry**: Built-in retry logic with exponential backoff for failed requests
@@ -372,11 +372,6 @@ The indexer uses a dynamic wallet allowlist system:
 
 7. **TypeScript compilation errors**:
    - Run `pnpm codegen` to regenerate types from schema
-
-8. **Rate limiting issues**:
-   - Each gateway is limited to 300 req/s
-   - If you're hitting rate limits, consider configuring different gateways for different data types
-   - Check logs for rate limit errors
 
 ### Debug Mode:
 

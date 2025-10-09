@@ -1,5 +1,4 @@
 import { experimental_createEffect, S, type EffectContext } from "envio";
-import pThrottle from "p-throttle";
 import {
     ipfsMetadataSchema,
     relationshipSchema,
@@ -22,10 +21,7 @@ interface DataTypeConfig {
     gateway: string;
     token: string | null;
     enabled: boolean;
-    throttle: ReturnType<typeof pThrottle>;
 }
-
-const RATE_LIMIT = 300; // 300 req/s per gateway
 
 // Read configuration from environment variables
 function loadDataTypeConfig(dataType: string): DataTypeConfig | null {
@@ -45,11 +41,7 @@ function loadDataTypeConfig(dataType: string): DataTypeConfig | null {
     return {
         gateway,
         token,
-        enabled: true,
-        throttle: pThrottle({
-            limit: RATE_LIMIT,
-            interval: 1000, // per second
-        })
+        enabled: true
     };
 }
 
@@ -221,12 +213,8 @@ async function fetchDataWithInfiniteRetry<T>(
         try {
             const fullUrl = buildGatewayUrl(config.gateway, cid, config.token);
 
-            // Use config-specific throttle (300 req/s per gateway)
-            const throttledFetch = config.throttle(async () => {
-                return await fetch(fullUrl);
-            });
-
-            const response = await throttledFetch();
+            // Direct HTTP request without throttling
+            const response = await fetch(fullUrl);
 
             if (response.ok) {
                 const data: any = await response.json();
