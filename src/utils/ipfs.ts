@@ -27,6 +27,21 @@ interface DataTypeConfig {
 
 const RATE_LIMIT = 280; // 280 req/s per gateway
 
+// Store one throttle per unique gateway URL
+const gatewayThrottles = new Map<string, ReturnType<typeof pThrottle>>();
+
+// Get or create throttle for a gateway URL
+function getThrottleForGateway(gatewayUrl: string): ReturnType<typeof pThrottle> {
+    if (!gatewayThrottles.has(gatewayUrl)) {
+        console.log(`[Config] Creating new throttle for gateway: ${gatewayUrl} (${RATE_LIMIT} req/s)`);
+        gatewayThrottles.set(gatewayUrl, pThrottle({
+            limit: RATE_LIMIT,
+            interval: 1000, // per second
+        }));
+    }
+    return gatewayThrottles.get(gatewayUrl)!;
+}
+
 // Read configuration from environment variables
 function loadDataTypeConfig(dataType: string): DataTypeConfig | null {
     const gatewayKey = `ENVIO_${dataType.toUpperCase()}_IPFS_GATEWAY`;
@@ -46,10 +61,7 @@ function loadDataTypeConfig(dataType: string): DataTypeConfig | null {
         gateway,
         token,
         enabled: true,
-        throttle: pThrottle({
-            limit: RATE_LIMIT,
-            interval: 1000, // per second
-        })
+        throttle: getThrottleForGateway(gateway)
     };
 }
 
@@ -221,7 +233,7 @@ async function fetchDataWithInfiniteRetry<T>(
         try {
             const fullUrl = buildGatewayUrl(config.gateway, cid, config.token);
 
-            // Use config-specific throttle (300 req/s per gateway)
+            // Use shared throttle for this gateway (280 req/s per unique gateway URL)
             const throttledFetch = config.throttle(async () => {
                 return await fetch(fullUrl);
             });
@@ -308,21 +320,37 @@ async function fetchDataWithInfiniteRetry<T>(
             const durationMs = Date.now() - attemptStartMs;
 
             // Extract detailed error information
-            const errorDetails = {
+            const errorDetails: any = {
                 cid,
                 gateway: config.gateway,
                 error: error.message,
                 errorName: error.name,
                 attempt: totalAttempts,
                 durationMs,
-                possibleCause: error.message?.includes('ENOTFOUND') ? 'DNS_RESOLUTION_FAILED' :
-                             error.message?.includes('ECONNREFUSED') ? 'CONNECTION_REFUSED' :
-                             error.message?.includes('ETIMEDOUT') ? 'CONNECTION_TIMEOUT' :
-                             error.message?.includes('ECONNRESET') ? 'CONNECTION_RESET' :
-                             error.message?.includes('timeout') ? 'TIMEOUT' :
-                             error.name === 'AbortError' ? 'REQUEST_ABORTED' :
-                             'UNKNOWN_NETWORK_ERROR'
+                fullErrorMessage: error.toString(),
+                errorStack: error.stack,
             };
+
+            // Add cause details if available
+            if (cause) {
+                errorDetails.causeMessage = cause.message || String(cause);
+                errorDetails.causeName = cause.name;
+                errorDetails.causeCode = cause.code;
+                if (cause.stack) {
+                    errorDetails.causeStack = cause.stack;
+                }
+            }
+
+            // Determine possible cause category
+            errorDetails.possibleCause = error.message?.includes('ENOTFOUND') ? 'DNS_RESOLUTION_FAILED' :
+                         error.message?.includes('ECONNREFUSED') ? 'CONNECTION_REFUSED' :
+                         error.message?.includes('ETIMEDOUT') ? 'CONNECTION_TIMEOUT' :
+                         error.message?.includes('ECONNRESET') ? 'CONNECTION_RESET' :
+                         error.message?.includes('timeout') ? 'TIMEOUT' :
+                         error.name === 'AbortError' ? 'REQUEST_ABORTED' :
+                         cause?.code === 'UND_ERR_CONNECT_TIMEOUT' ? 'UNDICI_CONNECT_TIMEOUT' :
+                         cause?.name === 'ConnectTimeoutError' ? 'CONNECT_TIMEOUT' :
+                         'UNKNOWN_NETWORK_ERROR';
 
             if (shouldRetryIndefinitely(undefined, error)) {
                 context.log.warn(`${dataType} fetch failed with retriable connection error, will retry`, errorDetails);
