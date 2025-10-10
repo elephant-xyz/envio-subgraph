@@ -15,6 +15,7 @@ To create a new deployment in Envio:
    - Click **Update**
 3. **Set Environment Variables**:
    - Go to **Environment Variables**
+   - 
    - Set the following environment variables (see `.env.example` for a complete template):
      ```bash
       # IPFS Gateway Configuration (REQUIRED - Property)
