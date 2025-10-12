@@ -291,11 +291,17 @@ export async function processCountyData(context: any, metadata: any, cid: string
     }
   }
 
-  // PHASE 2: sales/tax requires parcel_identifier. Error out if missing
+  // PHASE 2: sales/tax relationships and data using final propertyId (parcel_identifier only)
   if (!parcelIdentifier) {
-    const errorMsg = "Phase 2 blocked: parcel_identifier missing after Phase 1";
-    context.log.error(errorMsg, { cid, propertyEntityId });
-    throw new Error(errorMsg);
+    context.log.info("Skipping Phase 2 (sales/tax) - no parcel_identifier resolved", { cid });
+    return {
+      addressId,
+      propertyDataId,
+      ipfsId,
+      taxEntities,
+      parcelIdentifier,
+      salesHistoryEntities,
+    };
   }
 
   const salesHistoryCids = metadata.relationships?.property_has_sales_history || [];
