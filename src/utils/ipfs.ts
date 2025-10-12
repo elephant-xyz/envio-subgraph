@@ -73,7 +73,7 @@ const configs = {
     tax: loadDataTypeConfig('tax'),
 };
 
-// Validate that property is configured (REQUIRED - it provides metadata, relationships, and property data)
+// Validate REQUIRED data types (property, address, sales_history, tax)
 if (!configs.property) {
     const errorMsg = `[Config] ERROR: Property configuration is REQUIRED!
   Please set:
@@ -90,20 +90,43 @@ if (!configs.property) {
     throw new Error(errorMsg);
 }
 
-// Create non-nullable property config for TypeScript
-const propertyConfig: DataTypeConfig = configs.property;
-
-// Log enabled optional data types
-const optionalDataTypes = Object.entries(configs)
-    .filter(([key, config]) => key !== 'property' && config !== null)
-    .map(([type, _]) => type);
-
-console.log(`[Config] Property data type enabled (REQUIRED): ${propertyConfig.gateway}`);
-if (optionalDataTypes.length > 0) {
-    console.log(`[Config] Optional data types enabled: ${optionalDataTypes.join(', ')}`);
-} else {
-    console.log(`[Config] Optional data types: none (only property will be indexed)`);
+if (!configs.address) {
+    const errorMsg = `[Config] ERROR: Address configuration is REQUIRED!
+  Please set:
+  - ENVIO_ADDRESS_IPFS_GATEWAY
+  - ENVIO_ADDRESS_GATEWAY_TOKEN`;
+    console.error(errorMsg);
+    throw new Error(errorMsg);
 }
+
+if (!configs.sales_history) {
+    const errorMsg = `[Config] ERROR: Sales history configuration is REQUIRED!
+  Please set:
+  - ENVIO_SALES_HISTORY_IPFS_GATEWAY
+  - ENVIO_SALES_HISTORY_GATEWAY_TOKEN`;
+    console.error(errorMsg);
+    throw new Error(errorMsg);
+}
+
+if (!configs.tax) {
+    const errorMsg = `[Config] ERROR: Tax configuration is REQUIRED!
+  Please set:
+  - ENVIO_TAX_IPFS_GATEWAY
+  - ENVIO_TAX_GATEWAY_TOKEN`;
+    console.error(errorMsg);
+    throw new Error(errorMsg);
+}
+
+// Create non-nullable configs for TypeScript
+const propertyConfig: DataTypeConfig = configs.property;
+const addressConfig: DataTypeConfig = configs.address;
+const salesConfig: DataTypeConfig = configs.sales_history;
+const taxConfig: DataTypeConfig = configs.tax;
+
+console.log(`[Config] Property (REQUIRED): ${propertyConfig.gateway}`);
+console.log(`[Config] Address  (REQUIRED): ${addressConfig.gateway}`);
+console.log(`[Config] Sales    (REQUIRED): ${salesConfig.gateway}`);
+console.log(`[Config] Tax      (REQUIRED): ${taxConfig.gateway}`);
 
 // Convert bytes32 to CID (same as subgraph implementation)
 export function bytes32ToCID(dataHashHex: string): string {
@@ -168,44 +191,7 @@ function buildGatewayUrl(baseUrl: string, cid: string, token: string | null): st
     return url;
 }
 
-// Helper function to check if error should trigger retry (connection errors, timeouts, rate limits)
-function shouldRetryIndefinitely(response?: Response, error?: Error): boolean {
-    // Retry indefinitely on connection/timeout errors
-    if (error?.name === 'ConnectTimeoutError' ||
-        error?.name === 'TypeError' ||
-        error?.name === 'FetchError' ||
-        error?.message?.includes('timeout') ||
-        error?.message?.includes('ECONNREFUSED') ||
-        error?.message?.includes('ENOTFOUND') ||
-        error?.message?.includes('ETIMEDOUT') ||
-        error?.message?.includes('fetch failed')) {
-        return true;
-    }
-
-    // Also check the underlying error cause for connection issues
-    const cause = (error as any)?.cause;
-    if (cause?.name === 'ConnectTimeoutError' ||
-        cause?.code === 'UND_ERR_CONNECT_TIMEOUT' ||
-        cause?.message?.includes('Connect Timeout Error') ||
-        cause?.message?.includes('timeout')) {
-        return true;
-    }
-
-    // Retry indefinitely on specific HTTP status codes
-    if (response) {
-        return response.status === 429 || response.status === 500 || response.status === 502 || response.status === 504;
-    }
-
-    return false;
-}
-
-// Helper function for other non-retriable errors (give up after few attempts)
-function shouldRetryLimited(response?: Response, error?: Error): boolean {
-    if (response) {
-        return response.status >= 500 && response.status !== 500 && response.status !== 502 && response.status !== 504;
-    }
-    return false;
-}
+// Removed legacy selective retry helpers; all non-404 errors now retry indefinitely
 
 // Helper function to wait with exponential backoff
 async function waitWithBackoff(attempt: number): Promise<void> {
@@ -288,28 +274,17 @@ async function fetchDataWithInfiniteRetry<T>(
                     }
                 }
 
-                // Check if we should retry indefinitely
-                if (shouldRetryIndefinitely(response)) {
-                    const durationMs = Date.now() - attemptStartMs;
-                    context.log.warn(`${dataType} fetch failed with retriable error, will retry`, {
-                        cid,
-                        gateway: config.gateway,
-                        status: response.status,
-                        attempt: totalAttempts,
-                        durationMs
-                    });
-                    await new Promise(resolve => setTimeout(resolve, 1500));
-                } else {
-                    const durationMs = Date.now() - attemptStartMs;
-                    context.log.error(`${dataType} fetch failed with non-retriable error, stopping`, {
-                        cid,
-                        gateway: config.gateway,
-                        status: response.status,
-                        attempt: totalAttempts,
-                        durationMs
-                        });
-                        throw new Error(`${dataType} fetch failed with non-retriable status ${response.status}: ${response.statusText}`);
-                    }
+                // For ANY other non-OK status (not 404), retry indefinitely
+                const durationMs = Date.now() - attemptStartMs;
+                context.log.warn(`${dataType} fetch failed with HTTP status, will retry`, {
+                    cid,
+                    gateway: config.gateway,
+                    status: response.status,
+                    attempt: totalAttempts,
+                    durationMs
+                });
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                continue;
                 }
         } catch (e) {
             const error = e as Error;
@@ -352,13 +327,10 @@ async function fetchDataWithInfiniteRetry<T>(
                          cause?.name === 'ConnectTimeoutError' ? 'CONNECT_TIMEOUT' :
                          'UNKNOWN_NETWORK_ERROR';
 
-            if (shouldRetryIndefinitely(undefined, error)) {
-                context.log.warn(`${dataType} fetch failed with retriable connection error, will retry`, errorDetails);
-                await new Promise(resolve => setTimeout(resolve, 1500));
-            } else {
-                context.log.error(`${dataType} fetch failed with non-retriable error, stopping`, errorDetails);
-                throw new Error(`${dataType} fetch failed with non-retriable error: ${error.message}`);
-            }
+            // Retry indefinitely for ANY runtime error (network/timeouts/etc.)
+            context.log.warn(`${dataType} fetch failed with runtime error, will retry`, errorDetails);
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            continue;
         }
     }
 }

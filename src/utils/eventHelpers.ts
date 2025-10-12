@@ -152,15 +152,13 @@ export async function processCountyData(context: any, metadata: any, cid: string
   const salesHistoryEntities: SalesHistory[] = [];
   const taxEntities: Tax[] = [];
 
-  // Build relationship fetches in parallel
-  const relationshipPromises: any[] = [];
+  // PHASE 1: relationships for property/address only
   const propertyAddressCid = metadata.relationships?.property_has_address?.["/"];
   const addressFactSheetCid = metadata.relationships?.address_has_fact_sheet?.[0]?.["/"];
-  const salesHistoryCids = metadata.relationships?.property_has_sales_history || [];
-  const taxCids = metadata.relationships?.property_has_tax || [];
+  const phase1RelPromises: any[] = [];
 
   if (propertyAddressCid) {
-    relationshipPromises.push(
+    phase1RelPromises.push(
       (async () => {
         const start = Date.now();
         try {
@@ -177,7 +175,7 @@ export async function processCountyData(context: any, metadata: any, cid: string
   }
 
   if (addressFactSheetCid) {
-    relationshipPromises.push(
+    phase1RelPromises.push(
       (async () => {
         const start = Date.now();
         try {
@@ -193,53 +191,7 @@ export async function processCountyData(context: any, metadata: any, cid: string
     );
   }
 
-  // Only fetch sales history if configured
-  if (dataTypeConfigs.sales_history && getSalesHistoryData) {
-    for (const salesHistoryRef of salesHistoryCids) {
-      const salesHistoryRelCid = salesHistoryRef?.["/"];
-      if (salesHistoryRelCid) {
-        relationshipPromises.push(
-          (async () => {
-            const start = Date.now();
-            try {
-              const data = await context.effect(getRelationshipData, salesHistoryRelCid);
-              const durationMs = Date.now() - start;
-              const gateway = dataTypeConfigs.property?.gateway;
-              context.log.info("IPFS phase[sales_tax] sales relationship fetched", { cid: salesHistoryRelCid, gateway, durationMs });
-              return { type: 'sales_history_rel', data, cid: salesHistoryRelCid, durationMs };
-            } catch (error: any) {
-              return { type: 'sales_history_rel', error, cid: salesHistoryRelCid };
-            }
-          })()
-        );
-      }
-    }
-  }
-
-  // Only fetch tax if configured
-  if (dataTypeConfigs.tax && getTaxData) {
-    for (const taxRef of taxCids) {
-      const taxRelCid = taxRef?.["/"];
-      if (taxRelCid) {
-        relationshipPromises.push(
-          (async () => {
-            const start = Date.now();
-            try {
-              const data = await context.effect(getRelationshipData, taxRelCid);
-              const durationMs = Date.now() - start;
-              const gateway = dataTypeConfigs.property?.gateway;
-              context.log.info("IPFS phase[sales_tax] tax relationship fetched", { cid: taxRelCid, gateway, durationMs });
-              return { type: 'tax_rel', data, cid: taxRelCid, durationMs };
-            } catch (error: any) {
-              return { type: 'tax_rel', error, cid: taxRelCid };
-            }
-          })()
-        );
-      }
-    }
-  }
-
-  const relationshipResults = await Promise.all(relationshipPromises);
+  const phase1RelResults = await Promise.all(phase1RelPromises);
 
   // Build data fetches in parallel
   const allDataPromises: any[] = [];
@@ -247,51 +199,17 @@ export async function processCountyData(context: any, metadata: any, cid: string
   let addressDataCid: string | undefined;
   let ipfsDataCid: string | undefined;
 
-  for (const rel of relationshipResults) {
+  for (const rel of phase1RelResults) {
     if (rel.error) continue;
     if (rel.type === 'property_rel') {
       propertyDataCid = rel.data.from?.["/"] || rel.data.to?.["/"];
+      // Also derive addressDataCid from property_has_address (to = address)
+      if (!addressDataCid) {
+        addressDataCid = rel.data.to?.["/"];
+      }
     } else if (rel.type === 'address_rel') {
       addressDataCid = rel.data.from?.["/"];
       ipfsDataCid = rel.data.to?.["/"];
-    } else if (rel.type === 'sales_history_rel') {
-      // Only fetch if configured
-      if (dataTypeConfigs.sales_history && getSalesHistoryData) {
-        const targetCid = rel.data.to?.["/"] || rel.data.from?.["/"];
-        if (targetCid) {
-          allDataPromises.push((async () => {
-            const start = Date.now();
-            try {
-              const data = await context.effect(getSalesHistoryData, targetCid);
-              const durationMs = Date.now() - start;
-              const gateway = dataTypeConfigs.sales_history?.gateway;
-              context.log.info("IPFS phase[sales_tax] sales data fetched", { cid: targetCid, gateway, durationMs });
-              return { type: 'sales_history', data, cid: targetCid, durationMs };
-            } catch (error: any) {
-              return { type: 'sales_history', error, cid: targetCid };
-            }
-          })());
-        }
-      }
-    } else if (rel.type === 'tax_rel') {
-      // Only fetch if configured
-      if (dataTypeConfigs.tax && getTaxData) {
-        const targetCid = rel.data.to?.["/"] || rel.data.from?.["/"];
-        if (targetCid) {
-          allDataPromises.push((async () => {
-            const start = Date.now();
-            try {
-              const data = await context.effect(getTaxData, targetCid);
-              const durationMs = Date.now() - start;
-              const gateway = dataTypeConfigs.tax?.gateway;
-              context.log.info("IPFS phase[sales_tax] tax data fetched", { cid: targetCid, gateway, durationMs });
-              return { type: 'tax', data, cid: targetCid, durationMs };
-            } catch (error: any) {
-              return { type: 'tax', error, cid: targetCid };
-            }
-          })());
-        }
-      }
     }
   }
 
@@ -352,10 +270,14 @@ export async function processCountyData(context: any, metadata: any, cid: string
       continue;
     }
     if (result.type === 'property') {
-      propertyDataId = result.cid;
-      const propertyEntity = createPropertyEntity(result.cid, result.data);
-      context.Property.set(propertyEntity);
-      if (result.data.parcel_identifier) {
+      // Do NOT fallback: only set Property when parcel_identifier is present
+      if (!result.data.parcel_identifier) {
+        context.log.info("Skipping property entity - no parcel_identifier present", { cid, propertyCid: result.cid });
+      } else {
+        const effectivePropertyId: string = result.data.parcel_identifier as string;
+        propertyDataId = effectivePropertyId;
+        const propertyEntity = createPropertyEntity(effectivePropertyId, result.data);
+        context.Property.set(propertyEntity);
         parcelIdentifier = result.data.parcel_identifier;
       }
     } else if (result.type === 'address') {
@@ -366,12 +288,122 @@ export async function processCountyData(context: any, metadata: any, cid: string
       ipfsId = result.cid;
       const ipfsEntity = createIpfsEntity(result.cid, result.data);
       context.Ipfs.set(ipfsEntity);
-    } else if (result.type === 'sales_history') {
-      const salesHistoryEntity = createSalesHistoryEntity(result.cid, result.data, propertyEntityId);
+    }
+  }
+
+  // PHASE 2: sales/tax relationships and data using final propertyId (parcel_identifier only)
+  if (!parcelIdentifier) {
+    context.log.info("Skipping Phase 2 (sales/tax) - no parcel_identifier resolved", { cid });
+    return {
+      addressId,
+      propertyDataId,
+      ipfsId,
+      taxEntities,
+      parcelIdentifier,
+      salesHistoryEntities,
+    };
+  }
+
+  const salesHistoryCids = metadata.relationships?.property_has_sales_history || [];
+  const taxCids = metadata.relationships?.property_has_tax || [];
+
+  const phase2RelPromises: any[] = [];
+  if (dataTypeConfigs.sales_history && getSalesHistoryData) {
+    for (const salesHistoryRef of salesHistoryCids) {
+      const salesHistoryRelCid = salesHistoryRef?.["/"];
+      if (salesHistoryRelCid) {
+        phase2RelPromises.push(
+          (async () => {
+            const start = Date.now();
+            try {
+              const data = await context.effect(getRelationshipData, salesHistoryRelCid);
+              const durationMs = Date.now() - start;
+              const gateway = dataTypeConfigs.property?.gateway;
+              context.log.info("IPFS phase[sales_tax] sales relationship fetched", { cid: salesHistoryRelCid, gateway, durationMs });
+              return { type: 'sales_history_rel', data, cid: salesHistoryRelCid, durationMs };
+            } catch (error: any) {
+              return { type: 'sales_history_rel', error, cid: salesHistoryRelCid };
+            }
+          })()
+        );
+      }
+    }
+  }
+
+  if (dataTypeConfigs.tax && getTaxData) {
+    for (const taxRef of taxCids) {
+      const taxRelCid = taxRef?.["/"];
+      if (taxRelCid) {
+        phase2RelPromises.push(
+          (async () => {
+            const start = Date.now();
+            try {
+              const data = await context.effect(getRelationshipData, taxRelCid);
+              const durationMs = Date.now() - start;
+              const gateway = dataTypeConfigs.property?.gateway;
+              context.log.info("IPFS phase[sales_tax] tax relationship fetched", { cid: taxRelCid, gateway, durationMs });
+              return { type: 'tax_rel', data, cid: taxRelCid, durationMs };
+            } catch (error: any) {
+              return { type: 'tax_rel', error, cid: taxRelCid };
+            }
+          })()
+        );
+      }
+    }
+  }
+
+  const phase2RelResults = await Promise.all(phase2RelPromises);
+
+  const phase2DataPromises: any[] = [];
+  for (const rel of phase2RelResults) {
+    if (rel.error) continue;
+    if (rel.type === 'sales_history_rel' && dataTypeConfigs.sales_history && getSalesHistoryData) {
+      const targetCid = rel.data.to?.["/"] || rel.data.from?.["/"];
+      if (targetCid) {
+        phase2DataPromises.push((async () => {
+          const start = Date.now();
+          try {
+            const data = await context.effect(getSalesHistoryData, targetCid);
+            const durationMs = Date.now() - start;
+            const gateway = dataTypeConfigs.sales_history?.gateway;
+            context.log.info("IPFS phase[sales_tax] sales data fetched", { cid: targetCid, gateway, durationMs });
+            return { type: 'sales_history', data, cid: targetCid, durationMs };
+          } catch (error: any) {
+            return { type: 'sales_history', error, cid: targetCid };
+          }
+        })());
+      }
+    } else if (rel.type === 'tax_rel' && dataTypeConfigs.tax && getTaxData) {
+      const targetCid = rel.data.to?.["/"] || rel.data.from?.["/"];
+      if (targetCid) {
+        phase2DataPromises.push((async () => {
+          const start = Date.now();
+          try {
+            const data = await context.effect(getTaxData, targetCid);
+            const durationMs = Date.now() - start;
+            const gateway = dataTypeConfigs.tax?.gateway;
+            context.log.info("IPFS phase[sales_tax] tax data fetched", { cid: targetCid, gateway, durationMs });
+            return { type: 'tax', data, cid: targetCid, durationMs };
+          } catch (error: any) {
+            return { type: 'tax', error, cid: targetCid };
+          }
+        })());
+      }
+    }
+  }
+
+  const phase2DataResults = await Promise.all(phase2DataPromises);
+  for (const result of phase2DataResults) {
+    if (result.error) {
+      context.log.warn(`Failed to fetch ${result.type} data`, { cid, error: result.error.message });
+      continue;
+    }
+    if (result.type === 'sales_history') {
+      const salesHistoryEntity = createSalesHistoryEntity(result.cid, result.data, parcelIdentifier);
       context.SalesHistory.set(salesHistoryEntity);
       salesHistoryEntities.push(salesHistoryEntity);
     } else if (result.type === 'tax') {
-      const taxEntity = createTaxEntity(result.cid, result.data, propertyEntityId);
+      const taxEntity = createTaxEntity(result.cid, result.data, parcelIdentifier);
       context.Tax.set(taxEntity);
       taxEntities.push(taxEntity);
     }
