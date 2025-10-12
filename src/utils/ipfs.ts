@@ -73,7 +73,7 @@ const configs = {
     tax: loadDataTypeConfig('tax'),
 };
 
-// Validate REQUIRED data types (property, address, sales_history, tax)
+// Validate REQUIRED data types (property, address). Sales/tax are optional.
 if (!configs.property) {
     const errorMsg = `[Config] ERROR: Property configuration is REQUIRED!
   Please set:
@@ -99,34 +99,22 @@ if (!configs.address) {
     throw new Error(errorMsg);
 }
 
-if (!configs.sales_history) {
-    const errorMsg = `[Config] ERROR: Sales history configuration is REQUIRED!
-  Please set:
-  - ENVIO_SALES_HISTORY_IPFS_GATEWAY
-  - ENVIO_SALES_HISTORY_GATEWAY_TOKEN`;
-    console.error(errorMsg);
-    throw new Error(errorMsg);
-}
-
-if (!configs.tax) {
-    const errorMsg = `[Config] ERROR: Tax configuration is REQUIRED!
-  Please set:
-  - ENVIO_TAX_IPFS_GATEWAY
-  - ENVIO_TAX_GATEWAY_TOKEN`;
-    console.error(errorMsg);
-    throw new Error(errorMsg);
-}
-
 // Create non-nullable configs for TypeScript
 const propertyConfig: DataTypeConfig = configs.property;
 const addressConfig: DataTypeConfig = configs.address;
-const salesConfig: DataTypeConfig = configs.sales_history;
-const taxConfig: DataTypeConfig = configs.tax;
 
 console.log(`[Config] Property (REQUIRED): ${propertyConfig.gateway}`);
 console.log(`[Config] Address  (REQUIRED): ${addressConfig.gateway}`);
-console.log(`[Config] Sales    (REQUIRED): ${salesConfig.gateway}`);
-console.log(`[Config] Tax      (REQUIRED): ${taxConfig.gateway}`);
+if (configs.sales_history) {
+    console.log(`[Config] Sales    (ENABLED): ${configs.sales_history.gateway}`);
+} else {
+    console.log(`[Config] Sales    (DISABLED)`);
+}
+if (configs.tax) {
+    console.log(`[Config] Tax      (ENABLED): ${configs.tax.gateway}`);
+} else {
+    console.log(`[Config] Tax      (DISABLED)`);
+}
 
 // Convert bytes32 to CID (same as subgraph implementation)
 export function bytes32ToCID(dataHashHex: string): string {
