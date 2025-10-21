@@ -87,7 +87,24 @@ export function createStructureEntity(structureId: string, structureData: any): 
     window_frame_material: structureData.window_frame_material || undefined,
     window_glazing_type: structureData.window_glazing_type || undefined,
     window_operation_type: structureData.window_operation_type || undefined,
-    window_screen_material: structureData.window_screen_material || undefined
+    window_screen_material: structureData.window_screen_material || undefined,
+    exterior_door_installation_date: structureData.exterior_door_installation_date || undefined,
+    exterior_wall_condition_primary: structureData.exterior_wall_condition_primary || undefined,
+    exterior_wall_condition_secondary: structureData.exterior_wall_condition_secondary || undefined,
+    exterior_wall_insulation_type_primary: structureData.exterior_wall_insulation_type_primary || undefined,
+    exterior_wall_insulation_type_secondary: structureData.exterior_wall_insulation_type_secondary || undefined,
+    finished_base_area: structureData.finished_base_area || undefined,
+    finished_basement_area: structureData.finished_basement_area || undefined,
+    finished_upper_story_area: structureData.finished_upper_story_area || undefined,
+    foundation_repair_date: structureData.foundation_repair_date || undefined,
+    interior_wall_structure_material_primary: structureData.interior_wall_structure_material_primary || undefined,
+    interior_wall_structure_material_secondary: structureData.interior_wall_structure_material_secondary || undefined,
+    number_of_buildings: structureData.number_of_buildings || undefined,
+    siding_installation_date: structureData.siding_installation_date || undefined,
+    unfinished_base_area: structureData.unfinished_base_area || undefined,
+    unfinished_basement_area: structureData.unfinished_basement_area || undefined,
+    unfinished_upper_story_area: structureData.unfinished_upper_story_area || undefined,
+    window_installation_date: structureData.window_installation_date || undefined
   };
 }
 
@@ -108,7 +125,11 @@ export function createPropertyEntity(propertyDataId: string, propertyData: any):
     request_identifier: propertyData.request_identifier || undefined,
     subdivision: propertyData.subdivision || undefined,
     total_area: propertyData.total_area || undefined,
-    zoning: propertyData.zoning || undefined
+    zoning: propertyData.zoning || undefined,
+    build_status: propertyData.build_status || undefined,
+    ownership_estate_type: propertyData.ownership_estate_type || undefined,
+    property_usage_type: propertyData.property_usage_type || undefined,
+    structure_form: propertyData.structure_form || undefined
   };
 }
 
@@ -227,7 +248,29 @@ export function createUtilityEntity(utilityId: string, utilityData: any): Utilit
     solar_panel_present: utilityData.solar_panel_present || undefined,
     solar_panel_type: utilityData.solar_panel_type || undefined,
     solar_panel_type_other_description: utilityData.solar_panel_type_other_description || undefined,
-    water_source_type: utilityData.water_source_type || undefined
+    water_source_type: utilityData.water_source_type || undefined,
+    electrical_panel_installation_date: utilityData.electrical_panel_installation_date || undefined,
+    electrical_rewire_date: utilityData.electrical_rewire_date || undefined,
+    heating_fuel_type: utilityData.heating_fuel_type || undefined,
+    hvac_capacity_kw: utilityData.hvac_capacity_kw || undefined,
+    hvac_capacity_tons: utilityData.hvac_capacity_tons || undefined,
+    hvac_equipment_component: utilityData.hvac_equipment_component || undefined,
+    hvac_equipment_manufacturer: utilityData.hvac_equipment_manufacturer || undefined,
+    hvac_equipment_model: utilityData.hvac_equipment_model || undefined,
+    hvac_installation_date: utilityData.hvac_installation_date || undefined,
+    hvac_seer_rating: utilityData.hvac_seer_rating || undefined,
+    hvac_system_configuration: utilityData.hvac_system_configuration || undefined,
+    plumbing_system_installation_date: utilityData.plumbing_system_installation_date || undefined,
+    sewer_connection_date: utilityData.sewer_connection_date || undefined,
+    solar_installation_date: utilityData.solar_installation_date || undefined,
+    solar_inverter_installation_date: utilityData.solar_inverter_installation_date || undefined,
+    solar_inverter_manufacturer: utilityData.solar_inverter_manufacturer || undefined,
+    solar_inverter_model: utilityData.solar_inverter_model || undefined,
+    water_connection_date: utilityData.water_connection_date || undefined,
+    water_heater_installation_date: utilityData.water_heater_installation_date || undefined,
+    water_heater_manufacturer: utilityData.water_heater_manufacturer || undefined,
+    water_heater_model: utilityData.water_heater_model || undefined,
+    well_installation_date: utilityData.well_installation_date || undefined
   };
 }
 
@@ -311,7 +354,19 @@ export function createLayoutEntity(layoutId: string, layoutData: any, propertyId
     window_design_type: layoutData.window_design_type || undefined,
     window_material_type: layoutData.window_material_type || undefined,
     window_treatment_type: layoutData.window_treatment_type || undefined,
-    property_id: propertyId
+    property_id: propertyId,
+    adjustable_area_sq_ft: layoutData.adjustable_area_sq_ft || undefined,
+    area_under_air_sq_ft: layoutData.area_under_air_sq_ft || undefined,
+    bathroom_renovation_date: layoutData.bathroom_renovation_date || undefined,
+    building_number: layoutData.building_number || undefined,
+    flooring_installation_date: layoutData.flooring_installation_date || undefined,
+    heated_area_sq_ft: layoutData.heated_area_sq_ft || undefined,
+    kitchen_renovation_date: layoutData.kitchen_renovation_date || undefined,
+    livable_area_sq_ft: layoutData.livable_area_sq_ft || undefined,
+    pool_installation_date: layoutData.pool_installation_date || undefined,
+    spa_installation_date: layoutData.spa_installation_date || undefined,
+    story_type: layoutData.story_type || undefined,
+    total_area_sq_ft: layoutData.total_area_sq_ft || undefined
   };
 }
 

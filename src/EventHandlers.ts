@@ -112,10 +112,7 @@ ERC1967Proxy.DataGroupHeartBeat.handler(async ({ event, context }) => {
 });
 
 ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
-  if (!allowedSubmitters.includes(event.params.submitter)) {
-    // Skipping DataSubmitted event - only processing events from specific submitters
-    return;
-  }
+  // Topic filtering applied via eventFilters - only allowed submitters reach this handler
 
   const entity: ERC1967Proxy_DataSubmitted = {
     id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
@@ -288,4 +285,4 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
       error: (error as Error).message
     });
   }
-});
+}, { eventFilters: { submitter: allowedSubmitters } });

@@ -1,4 +1,5 @@
 import { experimental_createEffect, S, type EffectContext } from "envio";
+import pThrottle from "p-throttle";
 import {
     ipfsMetadataSchema,
     relationshipSchema,
@@ -33,6 +34,69 @@ import {
     type FileData,
     type DeedData
 } from "./schemas";
+
+// Load gateway configuration from environment variables
+const IPFS_GATEWAY = process.env.ENVIO_IPFS_GATEWAY;
+const GATEWAY_TOKEN = process.env.ENVIO_GATEWAY_TOKEN || null;
+
+// Validate required configuration
+if (!IPFS_GATEWAY) {
+    const errorMsg = `[IPFS Config] CRITICAL ERROR: ENVIO_IPFS_GATEWAY environment variable is required but not set.
+
+Please set the following environment variables:
+  - ENVIO_IPFS_GATEWAY (required): Your IPFS gateway URL
+  - ENVIO_GATEWAY_TOKEN (optional): Your gateway authentication token
+
+Example:
+  ENVIO_IPFS_GATEWAY=https://your-gateway.mypinata.cloud/ipfs
+  ENVIO_GATEWAY_TOKEN=your-token-here
+
+The indexer cannot start without a configured IPFS gateway.`;
+
+    console.error(errorMsg);
+    throw new Error('ENVIO_IPFS_GATEWAY environment variable is required');
+}
+
+console.log(`[IPFS Config] Gateway: ${IPFS_GATEWAY}`);
+if (GATEWAY_TOKEN) {
+    console.log(`[IPFS Config] Authentication: Token configured`);
+} else {
+    console.log(`[IPFS Config] Authentication: No token (public gateway)`);
+}
+
+// Global rate limiter for IPFS requests - shared across ALL events in the batch
+// This ensures we stay under Pinata's 300 req/s limit
+const IPFS_RATE_LIMIT = 250; // Max 250 requests per second
+const throttle = pThrottle({
+    limit: IPFS_RATE_LIMIT,
+    interval: 1000, // per 1000ms (1 second)
+});
+console.log(`[IPFS Config] Rate limiter: ${IPFS_RATE_LIMIT} req/s`);
+
+// Request tracking for monitoring
+let requestCount = 0;
+let lastLogTime = Date.now();
+let activeRequests = 0;
+let peakActiveRequests = 0;
+
+function trackRequest() {
+    requestCount++;
+    const now = Date.now();
+    const elapsed = now - lastLogTime;
+
+    // Log every second
+    if (elapsed >= 1000) {
+        const requestsPerSecond = (requestCount / elapsed) * 1000;
+        console.log(
+            `[IPFS Rate] ${requestsPerSecond.toFixed(1)} req/s (limit: ${IPFS_RATE_LIMIT}) | ` +
+            `Active: ${activeRequests} | ` +
+            `Peak: ${peakActiveRequests}`
+        );
+        requestCount = 0;
+        lastLogTime = now;
+        peakActiveRequests = 0; // Reset peak each interval
+    }
+}
 
 // Convert bytes32 to CID (same as subgraph implementation)
 //
@@ -86,23 +150,11 @@ export function bytes32ToCID(dataHashHex: string): string {
     return "b" + output;
 }
 
-// Build gateway configuration - use single specified gateway only
-function buildEndpoints() {
-    // Use only the specified gateway with infinite retries
-    return [{
-        url: "https://maroon-ready-rooster-237.mypinata.cloud/ipfs",
-        token: "pE_aFn_OMobMfmayHdoRYV_MRQ_ECYbzI4XGsKNV4x4VkuQiUUeNmFVRbiCwYb73"
-    }];
-}
-
-// Gateway configuration with optional authentication tokens
-const endpoints = buildEndpoints();
-
 // Helper function to build URL with optional token
-function buildGatewayUrl(baseUrl: string, cid: string, token: string | null): string {
-    const url = `${baseUrl}/${cid}`;
-    if (token) {
-        return `${url}?pinataGatewayToken=${token}`;
+function buildGatewayUrl(cid: string): string {
+    const url = `${IPFS_GATEWAY}/${cid}`;
+    if (GATEWAY_TOKEN) {
+        return `${url}?pinataGatewayToken=${GATEWAY_TOKEN}`;
     }
     return url;
 }
@@ -164,109 +216,120 @@ async function fetchDataWithInfiniteRetry<T>(
     let totalAttempts = 0;
 
     while (true) {
-        for (let i = 0; i < endpoints.length; i++) {
-            const endpoint = endpoints[i];
-            totalAttempts++;
+        totalAttempts++;
 
-            try {
-                const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
-                const response = await fetch(fullUrl);
+        try {
+            const fullUrl = buildGatewayUrl(cid);
 
-                if (response.ok) {
-                    const data: any = await response.json();
-                    if (validator(data)) {
-                        if (totalAttempts > 1) {
-                            context.log.info(`${dataType} fetch succeeded after ${totalAttempts} attempts`, {
-                                cid,
-                                endpoint: endpoint.url,
-                                totalAttempts
-                            });
-                        }
-                        return transformer(data);
-                    } else {
-                        context.log.warn(`${dataType} validation failed`, {
+            // Use rate limiter to stay under 300 req/s (250 req/s with headroom)
+            const throttledFetch = throttle(async () => {
+                activeRequests++;
+                if (activeRequests > peakActiveRequests) {
+                    peakActiveRequests = activeRequests;
+                }
+                trackRequest();
+
+                try {
+                    return await fetch(fullUrl);
+                } finally {
+                    activeRequests--;
+                }
+            });
+
+            const response = await throttledFetch();
+
+            if (response.ok) {
+                const data: any = await response.json();
+                if (validator(data)) {
+                    if (totalAttempts > 1) {
+                        context.log.info(`${dataType} fetch succeeded after ${totalAttempts} attempts`, {
                             cid,
-                            endpoint: endpoint.url,
-                            attempt: totalAttempts
+                            gateway: IPFS_GATEWAY,
+                            totalAttempts
                         });
                     }
+                    return transformer(data);
                 } else {
-                    // Check if we should retry indefinitely
-                    if (shouldRetryIndefinitely(response)) {
-                        context.log.warn(`${dataType} fetch failed with retriable error, will retry indefinitely`, {
-                            cid,
-                            endpoint: endpoint.url,
-                            status: response.status,
-                            statusText: response.statusText,
-                            attempt: totalAttempts
-                        });
-                    } else {
-                        context.log.error(`${dataType} fetch failed with non-retriable error, stopping`, {
-                            cid,
-                            endpoint: endpoint.url,
-                            status: response.status,
-                            statusText: response.statusText,
-                            attempt: totalAttempts
-                        });
-                        throw new Error(`${dataType} fetch failed with non-retriable status ${response.status}: ${response.statusText}`);
-                    }
+                    context.log.warn(`${dataType} validation failed`, {
+                        cid,
+                        gateway: IPFS_GATEWAY,
+                        attempt: totalAttempts
+                    });
                 }
-            } catch (e) {
-                const error = e as Error;
-                if (error.message.includes('fetch failed with non-retriable status')) {
-                    throw error;
-                }
-                const cause = (error as any)?.cause;
-
-                // Extract detailed error information
-                const errorDetails = {
-                    cid,
-                    endpoint: endpoint.url,
-                    error: error.message,
-                    errorName: error.name,
-                    attempt: totalAttempts,
-                    fullUrl: buildGatewayUrl(endpoint.url, cid, endpoint.token),
-                    errorStack: error.stack,
-                    errorCause: cause,
-                    // Additional diagnostic info
-                    causeCode: cause?.code,
-                    causeErrno: cause?.errno,
-                    causeSystemCall: cause?.syscall,
-                    causeAddress: cause?.address,
-                    causePort: cause?.port,
-                    userAgent: 'Envio-Indexer/1.0',
-                    timestamp: new Date().toISOString(),
-                    // Network diagnostic hints
-                    possibleCause: error.message?.includes('ENOTFOUND') ? 'DNS_RESOLUTION_FAILED' :
-                                 error.message?.includes('ECONNREFUSED') ? 'CONNECTION_REFUSED' :
-                                 error.message?.includes('ETIMEDOUT') ? 'CONNECTION_TIMEOUT' :
-                                 error.message?.includes('ECONNRESET') ? 'CONNECTION_RESET' :
-                                 error.message?.includes('timeout') ? 'TIMEOUT' :
-                                 error.name === 'AbortError' ? 'REQUEST_ABORTED' :
-                                 'UNKNOWN_NETWORK_ERROR'
-                };
-
-                if (shouldRetryIndefinitely(undefined, error)) {
-                    context.log.warn(`${dataType} fetch failed with retriable connection error, will retry indefinitely`, errorDetails);
+            } else {
+                // Check if we should retry indefinitely
+                if (shouldRetryIndefinitely(response)) {
+                    context.log.warn(`${dataType} fetch failed with retriable error, will retry indefinitely`, {
+                        cid,
+                        gateway: IPFS_GATEWAY,
+                        status: response.status,
+                        statusText: response.statusText,
+                        attempt: totalAttempts
+                    });
                 } else {
                     context.log.error(`${dataType} fetch failed with non-retriable error, stopping`, {
-                        ...errorDetails,
-                        errorStringified: JSON.stringify(error, Object.getOwnPropertyNames(error))
+                        cid,
+                        gateway: IPFS_GATEWAY,
+                        status: response.status,
+                        statusText: response.statusText,
+                        attempt: totalAttempts
                     });
-                    throw new Error(`${dataType} fetch failed with non-retriable error: ${error.message}`);
+                    throw new Error(`${dataType} fetch failed with non-retriable status ${response.status}: ${response.statusText}`);
                 }
             }
+        } catch (e) {
+            const error = e as Error;
+            if (error.message.includes('fetch failed with non-retriable status')) {
+                throw error;
+            }
+            const cause = (error as any)?.cause;
 
-            // No delay between gateways - try them as fast as possible
+            // Extract detailed error information
+            const errorDetails = {
+                cid,
+                gateway: IPFS_GATEWAY,
+                error: error.message,
+                errorName: error.name,
+                attempt: totalAttempts,
+                fullUrl: buildGatewayUrl(cid),
+                errorStack: error.stack,
+                errorCause: cause,
+                // Additional diagnostic info
+                causeCode: cause?.code,
+                causeErrno: cause?.errno,
+                causeSystemCall: cause?.syscall,
+                causeAddress: cause?.address,
+                causePort: cause?.port,
+                userAgent: 'Envio-Indexer/1.0',
+                timestamp: new Date().toISOString(),
+                // Network diagnostic hints
+                possibleCause: error.message?.includes('ENOTFOUND') ? 'DNS_RESOLUTION_FAILED' :
+                             error.message?.includes('ECONNREFUSED') ? 'CONNECTION_REFUSED' :
+                             error.message?.includes('ETIMEDOUT') ? 'CONNECTION_TIMEOUT' :
+                             error.message?.includes('ECONNRESET') ? 'CONNECTION_RESET' :
+                             error.message?.includes('timeout') ? 'TIMEOUT' :
+                             error.name === 'AbortError' ? 'REQUEST_ABORTED' :
+                             'UNKNOWN_NETWORK_ERROR'
+            };
+
+            if (shouldRetryIndefinitely(undefined, error)) {
+                context.log.warn(`${dataType} fetch failed with retriable connection error, will retry indefinitely`, errorDetails);
+            } else {
+                context.log.error(`${dataType} fetch failed with non-retriable error, stopping`, {
+                    ...errorDetails,
+                    errorStringified: JSON.stringify(error, Object.getOwnPropertyNames(error))
+                });
+                throw new Error(`${dataType} fetch failed with non-retriable error: ${error.message}`);
+            }
         }
 
-        // After trying all endpoints, wait a short time before starting another full cycle
-        context.log.info(`Completed full gateway cycle (${totalAttempts} attempts), waiting before retry`, {
+        // Wait before retrying
+        context.log.info(`Waiting before retry attempt`, {
             cid,
             dataType,
             totalAttempts
         });
-        await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5 second delay between full cycles
+        await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5 second delay between retries
     }
 }
 
@@ -297,57 +360,80 @@ async function fetchDataWithLimitedRetry<T>(
     transformer: (data: any) => T,
     maxAttempts: number = 3
 ): Promise<T> {
-    for (let i = 0; i < endpoints.length; i++) {
-        const endpoint = endpoints[i];
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        try {
+            const fullUrl = buildGatewayUrl(cid);
 
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-            try {
-                const fullUrl = buildGatewayUrl(endpoint.url, cid, endpoint.token);
-                const response = await fetch(fullUrl);
-
-                if (response.ok) {
-                    const data: any = await response.json();
-                    if (validator(data)) {
-                        if (attempt > 0) {
-                            context.log.info(`${dataType} fetch succeeded on attempt ${attempt + 1}`, {
-                                cid,
-                                endpoint: endpoint.url
-                            });
-                        }
-                        return transformer(data);
-                    }
-                } else {
-                    context.log.warn(`${dataType} fetch failed - HTTP error`, {
-                        cid,
-                        endpoint: endpoint.url,
-                        status: response.status,
-                        statusText: response.statusText,
-                        attempt: attempt + 1,
-                        maxAttempts
-                    });
+            // Use rate limiter to stay under 300 req/s (250 req/s with headroom)
+            const throttledFetch = throttle(async () => {
+                activeRequests++;
+                if (activeRequests > peakActiveRequests) {
+                    peakActiveRequests = activeRequests;
                 }
-            } catch (e) {
-                const error = e as Error;
-                context.log.warn(`Failed to fetch ${dataType}`, {
+                trackRequest();
+
+                try {
+                    return await fetch(fullUrl);
+                } finally {
+                    activeRequests--;
+                }
+            });
+
+            const response = await throttledFetch();
+
+            if (response.ok) {
+                const data: any = await response.json();
+                if (validator(data)) {
+                    if (attempt > 0) {
+                        context.log.info(`${dataType} fetch succeeded on attempt ${attempt + 1}`, {
+                            cid,
+                            gateway: IPFS_GATEWAY
+                        });
+                    }
+                    return transformer(data);
+                }
+            } else if (response.status === 404) {
+                // Don't retry on 404 - data doesn't exist
+                context.log.warn(`${dataType} not found (404) - skipping retries`, {
                     cid,
-                    endpoint: endpoint.url,
-                    error: error.message,
-                    errorName: error.name,
+                    gateway: IPFS_GATEWAY
+                });
+                throw new Error(`${dataType} not found (404)`);
+            } else {
+                context.log.warn(`${dataType} fetch failed - HTTP error`, {
+                    cid,
+                    gateway: IPFS_GATEWAY,
+                    status: response.status,
+                    statusText: response.statusText,
                     attempt: attempt + 1,
                     maxAttempts
                 });
             }
+        } catch (e) {
+            const error = e as Error;
 
-            // Wait before retry (except on last attempt)
-            if (attempt < maxAttempts - 1) {
-                await waitWithBackoff(attempt);
+            // If it's a 404 error, rethrow immediately
+            if (error.message.includes('404')) {
+                throw error;
             }
+
+            context.log.warn(`Failed to fetch ${dataType}`, {
+                cid,
+                gateway: IPFS_GATEWAY,
+                error: error.message,
+                errorName: error.name,
+                attempt: attempt + 1,
+                maxAttempts
+            });
         }
 
-        // No delay between endpoints - try them as fast as possible
+        // Wait before retry (except on last attempt)
+        if (attempt < maxAttempts - 1) {
+            await waitWithBackoff(attempt);
+        }
     }
 
-    context.log.error(`Unable to fetch ${dataType} from all gateways`, { cid });
+    context.log.error(`Unable to fetch ${dataType} after ${maxAttempts} attempts`, { cid, gateway: IPFS_GATEWAY });
     throw new Error(`Failed to fetch ${dataType} for CID: ${cid}`);
 }
 
