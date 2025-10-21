@@ -11,6 +11,9 @@ importers:
       envio:
         specifier: 2.28.0
         version: 2.28.0(typescript@5.2.2)
+      p-throttle:
+        specifier: ^8.0.0
+        version: 8.0.0
     devDependencies:
       '@types/chai':
         specifier: ^4.3.11
@@ -486,6 +489,10 @@ packages:
   p-locate@5.0.0:
     resolution: {integrity: sha512-LaNjtRWUBY++zB5nE/NwcaoMylSPk+S+ZHNB1TzdbMJMny6dynpAGt7X/tl/QYq3TIeE6nxHppbo2LGymrG5Pw==}
     engines: {node: '>=10'}
+
+  p-throttle@8.0.0:
+    resolution: {integrity: sha512-kvpi14SZClZqNTLevyhCNQano1LH4clozDZoOdxnxyvEl17kjEKxkgD6to7mQMcWE4fMKAwbH0rLqm6Gjj7b2Q==}
+    engines: {node: '>=20'}
 
   path-exists@4.0.0:
     resolution: {integrity: sha512-ak9Qy5Q7jYb2Wwcey5Fpvg2KoAc/ZIhLSLOSBmRmygPsGwkVVt0fZa0qrtMz+m6tJTAHfZQ8FnmB4MG4LWy7/w==}
@@ -1137,6 +1144,8 @@ snapshots:
   p-locate@5.0.0:
     dependencies:
       p-limit: 3.1.0
+
+  p-throttle@8.0.0: {}
 
   path-exists@4.0.0: {}
 
