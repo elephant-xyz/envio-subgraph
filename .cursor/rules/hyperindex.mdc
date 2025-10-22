@@ -1,4 +1,4 @@
----
+--- 
 description: Guide indexer development to align with a specific protocol's needs
 globs: "**/*.{ts,js,res,graphql,yaml}"
 alwaysApply: true
