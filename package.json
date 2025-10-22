@@ -8,7 +8,7 @@
     "mocha": "ts-mocha test/**/*.ts",
     "codegen": "envio codegen",
     "dev": "MAX_BATCH_SIZE=100 envio dev",
-    "start": "MAX_BATCH_SIZE=100 envio start",
+    "start": "MAX_BATCH_SIZE=100 envio start", 
     "test": "pnpm mocha"
   },
   "devDependencies": {
