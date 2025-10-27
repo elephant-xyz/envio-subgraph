@@ -10,7 +10,7 @@ To create a new deployment in Envio:
 2. **Update Git Settings**: 
    - Open **Settings**
    - Set your desired branch name in **Git Release Branch** (e.g., `production`, `staging`) 
-   - Click **Update**
+   - Click **Update**   
 3. **Set Environment Variables**:  
    - Go to **Environment Variables**
    - Set Env variables
