@@ -2,16 +2,16 @@
 
 A blockchain indexer built with Envio that processes property data events from smart contracts and fetches detailed property information from IPFS, including structure, address, and property details.
 
-## Creating a New Deployment
+## Creating a New Deployment 
 
-To create a new deployment in Envio:  
+To create a new deployment in Envio:   
 
 1. **Open Envio Dashboard**: Go to [Envio](https://envio.dev) and select your indexer 
 2. **Update Git Settings**: 
    - Open **Settings**
-   - Set your desired branch name in **Git Release Branch** (e.g., `production`, `staging`)
-   - Click **Update**
-3. **Set Environment Variables**:
+   - Set your desired branch name in **Git Release Branch** (e.g., `production`, `staging`) 
+   - Click **Update**   
+3. **Set Environment Variables**:  
    - Go to **Environment Variables**
    - Set Env variables
      ```bash
@@ -293,3 +293,4 @@ pnpm deploy
 - [Envio Documentation](https://docs.envio.dev) - Complete guide on all Envio indexer features
 - [Envio Discord](https://discord.gg/envio)
 - [GitHub Issues](./issues) for project-specific problems
+

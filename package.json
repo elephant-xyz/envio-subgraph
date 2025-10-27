@@ -2,13 +2,13 @@
   "name": "envio-graph2",
   "version": "0.1.0",
   "scripts": {
-    "clean": "tsc --clean",
-    "build": "tsc --build",
+    "clean": "tsc --clean", 
+    "build": "tsc --build", 
     "watch": "tsc --watch",
     "mocha": "ts-mocha test/**/*.ts",
     "codegen": "envio codegen",
-    "dev": "MAX_BATCH_SIZE=500 envio dev",
-    "start": "MAX_BATCH_SIZE=500 envio start",
+    "dev": "MAX_BATCH_SIZE=100 envio dev",
+    "start": "MAX_BATCH_SIZE=100 envio start", 
     "test": "pnpm mocha"
   },
   "devDependencies": {
