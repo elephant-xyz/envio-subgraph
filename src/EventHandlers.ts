@@ -134,24 +134,20 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
     let parcelIdentifier: string | undefined;
 
     // Initialize entity IDs that will be populated from IPFS data
-    let structureId: string | undefined;
     let addressId: string | undefined;
     let propertyDataId: string | undefined;
     let ipfsId: string | undefined;
     let lotId: string | undefined;
-    let utilityId: string | undefined;
     let floodStormId: string | undefined;
 
     if (metadata.label === "County") {
       // Process County data first to get parcel_identifier
       const result = await processCountyData(context, metadata, cid, propertyId);
       if (result) {
-        structureId = result.structureId;
         addressId = result.addressId;
         propertyDataId = result.propertyDataId;
         ipfsId = result.ipfsId;
         lotId = result.lotId;
-        utilityId = result.utilityId;
         floodStormId = result.floodStormId;
         parcelIdentifier = result.parcelIdentifier;
 
@@ -257,12 +253,10 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
       cid: cid,
       label: metadata.label,
       id_source: idSource,
-      structure_id: structureId,
       address_id: addressId,
       property_id: propertyDataId,
       ipfs_id: ipfsId,
       lot_id: lotId,
-      utility_id: utilityId,
       flood_storm_information_id: floodStormId,
       datetime: BigInt(event.block.timestamp),
     };
@@ -273,7 +267,6 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
       propertyHash: event.params.propertyHash,
       label: metadata.label,
       idSource,
-      structureId,
       addressId,
       propertyDataId,
       isUpdate: !!existingEntityDS,

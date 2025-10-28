@@ -79,6 +79,7 @@ type Structure {
   unfinished_basement_area: Int
   unfinished_upper_story_area: Int
   window_installation_date: String
+  layout_id: String
 }
 
 
@@ -106,6 +107,12 @@ type Address {
   street_suffix: String
   unit_identifier: String
   township: String
+  unnormalized_address: String
+}
+
+type MailingAddress {
+  id: ID!
+  unnormalized_address: String
 }
 
 type Property {
@@ -226,6 +233,7 @@ type Utility {
   water_heater_manufacturer: String
   water_heater_model: String
   well_installation_date: String
+  layout_id: String
 }
 
 type FloodStormInformation {
@@ -253,6 +261,7 @@ type Person {
   us_citizenship_status: String
   veteran_status: Boolean
   property_id: String!
+  mailing_address: MailingAddress
 }
 
 type Company {
@@ -260,6 +269,7 @@ type Company {
   name: String
   request_identifier: String
   property_id: String!
+  mailing_address: MailingAddress
 }
 
 type Layout {
@@ -310,6 +320,8 @@ type Layout {
   spa_installation_date: String
   story_type: String
   total_area_sq_ft: Int
+  structures: [Structure!]! @derivedFrom(field: "layout_id")
+  utilities: [Utility!]! @derivedFrom(field: "layout_id")
 }
 
 type File {
@@ -326,7 +338,7 @@ type File {
 
 type Deed {
   id: ID!
-  deed_type: String!
+  deed_type: String
   sales_history_id: String
   files: [File!]! @derivedFrom(field: "deed_id")
 }
@@ -340,12 +352,10 @@ type DataSubmittedWithLabel {
   label: String!
   id_source: String!
   datetime: BigInt
-  structure: Structure
   address: Address
   property: Property
   ipfs: Ipfs
   lot: Lot
-  utility: Utility
   flood_storm_information: FloodStormInformation
   sales_history: [SalesHistory!]! @derivedFrom(field: "property_id")
   tax: [Tax!]! @derivedFrom(field: "property_id")

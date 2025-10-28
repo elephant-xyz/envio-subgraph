@@ -2,9 +2,11 @@ import { experimental_createEffect, S, type EffectContext } from "envio";
 import pThrottle from "p-throttle";
 import {
     ipfsMetadataSchema,
+    layoutMetadataSchema,
     relationshipSchema,
     structureSchema,
     addressSchema,
+    mailingAddressSchema,
     propertySchema,
     ipfsFactSheetSchema,
     lotDataSchema,
@@ -18,9 +20,11 @@ import {
     fileSchema,
     deedSchema,
     type IpfsMetadata,
+    type LayoutMetadata,
     type RelationshipData,
     type StructureData,
     type AddressData,
+    type MailingAddressData,
     type PropertyData,
     type IpfsFactSheetData,
     type LotData,
@@ -350,6 +354,21 @@ async function fetchIpfsMetadataWithInfiniteRetry(
     );
 }
 
+async function fetchLayoutMetadataWithInfiniteRetry(
+    context: EffectContext,
+    cid: string
+): Promise<LayoutMetadata> {
+    return fetchDataWithInfiniteRetry(
+        context,
+        cid,
+        "layout metadata",
+        (data) => data && typeof data === 'object',
+        (data) => ({
+            relationships: data.relationships
+        })
+    );
+}
+
 // DEPRECATED: This function has been replaced by fetchDataWithInfiniteRetry
 // Keeping only for getRelationshipData which needs limited retries
 async function fetchDataWithLimitedRetry<T>(
@@ -559,6 +578,28 @@ export const getAddressData = experimental_createEffect(
                 street_suffix_type: data.street_suffix_type || undefined,
                 township: data.township || undefined,
                 unit_identifier: data.unit_identifier || undefined,
+                unnormalized_address: data.unnormalized_address || undefined,
+            })
+        );
+    }
+);
+
+// Fetch mailing address data
+export const getMailingAddressData = experimental_createEffect(
+    {
+        name: "getMailingAddressData",
+        input: S.string,
+        output: mailingAddressSchema,
+        cache: true,
+    },
+    async ({ input: cid, context }) => {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "mailing address data",
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
+                unnormalized_address: data.unnormalized_address || undefined,
             })
         );
     }
@@ -630,6 +671,18 @@ export const getIpfsMetadata = experimental_createEffect(
     },
     async ({ input: cid, context }) => {
         return fetchIpfsMetadataWithInfiniteRetry(context, cid);
+    }
+);
+
+export const getLayoutMetadata = experimental_createEffect(
+    {
+        name: "getLayoutMetadata",
+        input: S.string,
+        output: layoutMetadataSchema,
+        cache: true, // Enable caching for better performance
+    },
+    async ({ input: cid, context }) => {
+        return fetchLayoutMetadataWithInfiniteRetry(context, cid);
     }
 );
 
@@ -929,7 +982,7 @@ export const getDeedData = experimental_createEffect(
             "deed data",
             (data: any) => data && typeof data === 'object',
             (data: any) => ({
-                deed_type: data.deed_type,
+                deed_type: data.deed_type || undefined,
             })
         );
     }
