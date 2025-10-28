@@ -2,6 +2,7 @@ import {
   DataSubmittedWithLabel,
   Structure,
   Address,
+  MailingAddress,
   Property,
   Ipfs,
   Lot,
@@ -15,7 +16,7 @@ import {
   File,
   Deed,
 } from "generated";
-import { bytes32ToCID, getIpfsMetadata, getRelationshipData, getStructureData, getAddressData, getPropertyData, getIpfsFactSheetData, getLotData, getSalesHistoryData, getTaxData, getUtilityData, getFloodStormData, getPersonData, getCompanyData, getDeedData,getFileData,getLayoutData } from "./ipfs";
+import { bytes32ToCID, getIpfsMetadata, getLayoutMetadata, getRelationshipData, getStructureData, getAddressData, getMailingAddressData, getPropertyData, getIpfsFactSheetData, getLotData, getSalesHistoryData, getTaxData, getUtilityData, getFloodStormData, getPersonData, getCompanyData, getDeedData,getFileData,getLayoutData } from "./ipfs";
 
 // Function to get all wallet addresses from environment variables
 export function getAllowedSubmitters(): string[] {
@@ -39,7 +40,7 @@ export function getAllowedSubmitters(): string[] {
 }
 
 // Helper to create Structure entity
-export function createStructureEntity(structureId: string, structureData: any): Structure {
+export function createStructureEntity(structureId: string, structureData: any, layoutId?: string): Structure {
   return {
     id: structureId,
     roof_date: structureData.roof_date || undefined,
@@ -104,7 +105,8 @@ export function createStructureEntity(structureId: string, structureData: any): 
     unfinished_base_area: structureData.unfinished_base_area || undefined,
     unfinished_basement_area: structureData.unfinished_basement_area || undefined,
     unfinished_upper_story_area: structureData.unfinished_upper_story_area || undefined,
-    window_installation_date: structureData.window_installation_date || undefined
+    window_installation_date: structureData.window_installation_date || undefined,
+    layout_id: layoutId || undefined
   };
 }
 
@@ -158,7 +160,16 @@ export function createAddressEntity(addressId: string, addressData: any): Addres
     street_number: addressData.street_number || undefined,
     street_suffix: addressData.street_suffix_type || undefined,
     unit_identifier: addressData.unit_identifier || undefined,
-    township: addressData.township || undefined
+    township: addressData.township || undefined,
+    unnormalized_address: addressData.unnormalized_address || undefined
+  };
+}
+
+// Helper to create MailingAddress entity
+export function createMailingAddressEntity(mailingAddressId: string, mailingAddressData: any): MailingAddress {
+  return {
+    id: mailingAddressId,
+    unnormalized_address: mailingAddressData.unnormalized_address || undefined
   };
 }
 
@@ -226,7 +237,7 @@ export function createTaxEntity(taxId: string, taxData: any, propertyId: string)
 }
 
 // Helper to create Utility entity
-export function createUtilityEntity(utilityId: string, utilityData: any): Utility {
+export function createUtilityEntity(utilityId: string, utilityData: any, layoutId?: string): Utility {
   return {
     id: utilityId,
     cooling_system_type: utilityData.cooling_system_type || undefined,
@@ -270,7 +281,8 @@ export function createUtilityEntity(utilityId: string, utilityData: any): Utilit
     water_heater_installation_date: utilityData.water_heater_installation_date || undefined,
     water_heater_manufacturer: utilityData.water_heater_manufacturer || undefined,
     water_heater_model: utilityData.water_heater_model || undefined,
-    well_installation_date: utilityData.well_installation_date || undefined
+    well_installation_date: utilityData.well_installation_date || undefined,
+    layout_id: layoutId || undefined
   };
 }
 
@@ -291,7 +303,7 @@ export function createFloodStormEntity(floodStormId: string, floodStormData: any
 }
 
 // Helper to create Person entity
-export function createPersonEntity(personId: string, personData: any, propertyId: string): Person {
+export function createPersonEntity(personId: string, personData: any, propertyId: string, mailingAddressId?: string): Person {
   return {
     id: personId,
     birth_date: personData.birth_date || undefined,
@@ -303,17 +315,19 @@ export function createPersonEntity(personId: string, personData: any, propertyId
     suffix_name: personData.suffix_name || undefined,
     us_citizenship_status: personData.us_citizenship_status || undefined,
     veteran_status: personData.veteran_status || undefined,
-    property_id: propertyId
+    property_id: propertyId,
+    mailing_address_id: mailingAddressId || undefined
   };
 }
 
 // Helper to create Company entity
-export function createCompanyEntity(companyId: string, companyData: any, propertyId: string): Company {
+export function createCompanyEntity(companyId: string, companyData: any, propertyId: string, mailingAddressId?: string): Company {
   return {
     id: companyId,
     name: companyData.name || undefined,
     request_identifier: companyData.request_identifier || undefined,
-    property_id: propertyId
+    property_id: propertyId,
+    mailing_address_id: mailingAddressId || undefined
   };
 }
 
@@ -389,7 +403,7 @@ export function createFileEntity(fileId: string, fileData: any, propertyId: stri
 export function createDeedEntity(deedId: string, deedData: any, salesHistoryId?: string): Deed {
   return {
     id: deedId,
-    deed_type: deedData.deed_type,
+    deed_type: deedData.deed_type || undefined,
     sales_history_id: salesHistoryId || undefined
   };
 }
@@ -397,12 +411,10 @@ export function createDeedEntity(deedId: string, deedData: any, salesHistoryId?:
 // Helper to process County data with full parallelism
 export async function processCountyData(context: any, metadata: any, cid: string, propertyEntityId: string) {
   // Initialize entity IDs that will be populated from IPFS data
-  let structureId: string | undefined;
   let addressId: string | undefined;
   let propertyDataId: string | undefined;
   let ipfsId: string | undefined;
   let lotId: string | undefined;
-  let utilityId: string | undefined;
   let floodStormId: string | undefined;
   let parcelIdentifier: string | undefined;
   const salesHistoryEntities: SalesHistory[] = [];
@@ -416,10 +428,8 @@ export async function processCountyData(context: any, metadata: any, cid: string
   // First fetch relationships to get CIDs
   const relationshipPromises = [];
 
-  const structureCid = metadata.relationships?.property_has_structure?.["/"];
   const propertyAddressCid = metadata.relationships?.property_has_address?.["/"];
   const propertyLotCid = metadata.relationships?.property_has_lot?.["/"];
-  const propertyUtilityCid = metadata.relationships?.property_has_utility?.["/"];
   const propertyFloodStormCid = metadata.relationships?.property_has_flood_storm_information?.["/"];
   const addressFactSheetCid = metadata.relationships?.address_has_fact_sheet?.[0]?.["/"];
   const salesHistoryCids = metadata.relationships?.property_has_sales_history || [];
@@ -430,14 +440,8 @@ export async function processCountyData(context: any, metadata: any, cid: string
   const fileCids = metadata.relationships?.property_has_file || [];
   const deedCids = metadata.relationships?.deed_has_file || [];
   const salesHistoryDeedCids = metadata.relationships?.sales_history_has_deed || [];
-
-  if (structureCid) {
-    relationshipPromises.push(
-      context.effect(getRelationshipData, structureCid)
-        .then((data: any) => ({ type: 'structure_rel', data, cid: structureCid }))
-        .catch((error: any) => ({ type: 'structure_rel', error, cid: structureCid }))
-    );
-  }
+  const personMailingAddressCids = metadata.relationships?.person_has_mailing_address || [];
+  const companyMailingAddressCids = metadata.relationships?.company_has_mailing_address || [];
 
   if (propertyAddressCid) {
     relationshipPromises.push(
@@ -452,14 +456,6 @@ export async function processCountyData(context: any, metadata: any, cid: string
       context.effect(getRelationshipData, propertyLotCid)
         .then((data: any) => ({ type: 'lot_rel', data, cid: propertyLotCid }))
         .catch((error: any) => ({ type: 'lot_rel', error, cid: propertyLotCid }))
-    );
-  }
-
-  if (propertyUtilityCid) {
-    relationshipPromises.push(
-      context.effect(getRelationshipData, propertyUtilityCid)
-        .then((data: any) => ({ type: 'utility_rel', data, cid: propertyUtilityCid }))
-        .catch((error: any) => ({ type: 'utility_rel', error, cid: propertyUtilityCid }))
     );
   }
 
@@ -575,31 +571,47 @@ export async function processCountyData(context: any, metadata: any, cid: string
     }
   }
 
+  // Add person_has_mailing_address relationship fetching
+  for (const personMailingAddressRef of personMailingAddressCids) {
+    const personMailingAddressRelCid = personMailingAddressRef?.["/"];
+    if (personMailingAddressRelCid) {
+        relationshipPromises.push(
+        context.effect(getRelationshipData, personMailingAddressRelCid)
+            .then((data: any) => ({ type: 'person_mailing_address_rel', data, cid: personMailingAddressRelCid }))
+            .catch((error: any) => ({ type: 'person_mailing_address_rel', error, cid: personMailingAddressRelCid }))
+        );
+    }
+  }
+
+  // Add company_has_mailing_address relationship fetching
+  for (const companyMailingAddressRef of companyMailingAddressCids) {
+    const companyMailingAddressRelCid = companyMailingAddressRef?.["/"];
+    if (companyMailingAddressRelCid) {
+        relationshipPromises.push(
+        context.effect(getRelationshipData, companyMailingAddressRelCid)
+            .then((data: any) => ({ type: 'company_mailing_address_rel', data, cid: companyMailingAddressRelCid }))
+            .catch((error: any) => ({ type: 'company_mailing_address_rel', error, cid: companyMailingAddressRelCid }))
+        );
+    }
+  }
+
   const relationshipResults = await Promise.all(relationshipPromises);
 
   // Extract all CIDs for parallel fetching
   const allDataPromises = [];
-  let structureDataCid: string | undefined;
   let propertyDataCid: string | undefined;
   let lotDataCid: string | undefined;
-  let utilityDataCid: string | undefined;
   let floodStormDataCid: string | undefined;
   let addressDataCid: string | undefined;
   let ipfsDataCid: string | undefined;
 
   for (const relationshipResult of relationshipResults) {
-    if (relationshipResult.type === 'structure_rel' && !relationshipResult.error) {
-      // From property_has_structure: only get structure (to)
-      structureDataCid = relationshipResult.data.to?.["/"];
-    } else if (relationshipResult.type === 'property_rel' && !relationshipResult.error) {
+    if (relationshipResult.type === 'property_rel' && !relationshipResult.error) {
       // From property_has_address: get property (from)
       propertyDataCid = relationshipResult.data.from?.["/"];
     } else if (relationshipResult.type === 'lot_rel' && !relationshipResult.error) {
       // From property_has_lot: get lot data (to)
       lotDataCid = relationshipResult.data.to?.["/"];
-    } else if (relationshipResult.type === 'utility_rel' && !relationshipResult.error) {
-      // From property_has_utility: get utility data (to)
-      utilityDataCid = relationshipResult.data.to?.["/"];
     } else if (relationshipResult.type === 'flood_storm_rel' && !relationshipResult.error) {
       // From property_has_flood_storm_information: get flood storm data (to)
       floodStormDataCid = relationshipResult.data.to?.["/"];
@@ -647,9 +659,16 @@ export async function processCountyData(context: any, metadata: any, cid: string
         );
       }
     } else if (relationshipResult.type === 'layout_rel' && !relationshipResult.error) {
-      // From property_has_layout: get layout data (to)
+      // From property_has_layout: get layout metadata and data (to)
       const targetCid = relationshipResult.data.to?.["/"];
       if (targetCid) {
+          // Fetch layout metadata to get structure and utility relationships
+          allDataPromises.push(
+          context.effect(getLayoutMetadata, targetCid)
+              .then((metadata: any) => ({ type: 'layout_metadata', metadata, cid: targetCid }))
+              .catch((error: any) => ({ type: 'layout_metadata', error, cid: targetCid }))
+          );
+          // Fetch layout data
           allDataPromises.push(
           context.effect(getLayoutData, targetCid)
               .then((data: any) => ({ type: 'layout', data, cid: targetCid }))
@@ -686,18 +705,32 @@ export async function processCountyData(context: any, metadata: any, cid: string
               .catch((error: any) => ({ type: 'sales_history_deed', error, cid: deedCid, salesHistoryCid }))
           );
       }
+    } else if (relationshipResult.type === 'person_mailing_address_rel' && !relationshipResult.error) {
+      // From person_has_mailing_address: get mailing address data (to) and person (from)
+      const mailingAddressCid = relationshipResult.data.to?.["/"];
+      const personCid = relationshipResult.data.from?.["/"];
+      if (mailingAddressCid) {
+          allDataPromises.push(
+          context.effect(getMailingAddressData, mailingAddressCid)
+              .then((data: any) => ({ type: 'person_mailing_address', data, cid: mailingAddressCid, personCid }))
+              .catch((error: any) => ({ type: 'person_mailing_address', error, cid: mailingAddressCid, personCid }))
+          );
+      }
+    } else if (relationshipResult.type === 'company_mailing_address_rel' && !relationshipResult.error) {
+      // From company_has_mailing_address: get mailing address data (to) and company (from)
+      const mailingAddressCid = relationshipResult.data.to?.["/"];
+      const companyCid = relationshipResult.data.from?.["/"];
+      if (mailingAddressCid) {
+          allDataPromises.push(
+          context.effect(getMailingAddressData, mailingAddressCid)
+              .then((data: any) => ({ type: 'company_mailing_address', data, cid: mailingAddressCid, companyCid }))
+              .catch((error: any) => ({ type: 'company_mailing_address', error, cid: mailingAddressCid, companyCid }))
+          );
+      }
     }
   }
 
   // Fetch all data in parallel
-  if (structureDataCid) {
-    allDataPromises.push(
-      context.effect(getStructureData, structureDataCid)
-        .then((data: any) => ({ type: 'structure', data, cid: structureDataCid }))
-        .catch((error: any) => ({ type: 'structure', error, cid: structureDataCid }))
-    );
-  }
-
   if (propertyDataCid) {
     allDataPromises.push(
       context.effect(getPropertyData, propertyDataCid)
@@ -730,14 +763,6 @@ export async function processCountyData(context: any, metadata: any, cid: string
     );
   }
 
-  if (utilityDataCid) {
-    allDataPromises.push(
-      context.effect(getUtilityData, utilityDataCid)
-        .then((data: any) => ({ type: 'utility', data, cid: utilityDataCid }))
-        .catch((error: any) => ({ type: 'utility', error, cid: utilityDataCid }))
-    );
-  }
-
   if (floodStormDataCid) {
     allDataPromises.push(
       context.effect(getFloodStormData, floodStormDataCid)
@@ -749,6 +774,120 @@ export async function processCountyData(context: any, metadata: any, cid: string
   // Execute all data fetches in parallel
   const allDataResults = await Promise.all(allDataPromises);
 
+  // First pass: process layout_metadata results and fetch structure/utility for each layout
+  const layoutStructureUtilityPromises = [];
+  const layoutMetadataMap = new Map(); // Map from layout CID to its metadata
+
+  for (const result of allDataResults) {
+    if (result.type === 'layout_metadata' && !result.error) {
+      layoutMetadataMap.set(result.cid, result.metadata);
+
+      // Get structure and utility relationship CIDs from layout metadata (all are arrays)
+      const structureRelCids = result.metadata?.relationships?.layout_has_Structure || [];
+      const utilityRelCids = result.metadata?.relationships?.layout_has_utility || [];
+
+      // Fetch all structure relationships and data
+      for (const structureRel of structureRelCids) {
+        const structureRelCid = structureRel?.["/"];
+        if (structureRelCid) {
+          layoutStructureUtilityPromises.push(
+            context.effect(getRelationshipData, structureRelCid)
+              .then((relData: any) => {
+                const structureCid = relData.to?.["/"];
+                if (structureCid) {
+                  return context.effect(getStructureData, structureCid)
+                    .then((structureData: any) => ({
+                      type: 'layout_structure',
+                      layoutCid: result.cid,
+                      structureCid,
+                      structureData
+                    }));
+                }
+                return null;
+              })
+              .catch((error: any) => ({ type: 'layout_structure', error, layoutCid: result.cid }))
+          );
+        }
+      }
+
+      // Fetch all utility relationships and data
+      for (const utilityRel of utilityRelCids) {
+        const utilityRelCid = utilityRel?.["/"];
+        if (utilityRelCid) {
+          layoutStructureUtilityPromises.push(
+            context.effect(getRelationshipData, utilityRelCid)
+              .then((relData: any) => {
+                const utilityCid = relData.to?.["/"];
+                if (utilityCid) {
+                  return context.effect(getUtilityData, utilityCid)
+                    .then((utilityData: any) => ({
+                      type: 'layout_utility',
+                      layoutCid: result.cid,
+                      utilityCid,
+                      utilityData
+                    }));
+                }
+                return null;
+              })
+              .catch((error: any) => ({ type: 'layout_utility', error, layoutCid: result.cid }))
+          );
+        }
+      }
+    }
+  }
+
+  // Wait for all layout structure/utility fetches
+  const layoutStructureUtilityResults = await Promise.all(layoutStructureUtilityPromises);
+
+  // Process layout structure/utility results
+  for (const result of layoutStructureUtilityResults) {
+    if (!result || result.error) {
+      if (result?.error) {
+        context.log.warn(`Failed to fetch ${result.type} for layout`, {
+          cid,
+          layoutCid: result.layoutCid || result.parentLayoutCid,
+          error: result.error.message
+        });
+      }
+      continue;
+    }
+
+    if (result.type === 'layout_structure') {
+      // Create structure entity with layout_id
+      const structureEntity = createStructureEntity(result.structureCid, result.structureData, result.layoutCid);
+      context.Structure.set(structureEntity);
+    } else if (result.type === 'layout_utility') {
+      // Create utility entity with layout_id
+      const utilityEntity = createUtilityEntity(result.utilityCid, result.utilityData, result.layoutCid);
+      context.Utility.set(utilityEntity);
+    }
+  }
+
+  // Create maps to track mailing address IDs for persons and companies
+  const personMailingAddressMap = new Map<string, string>();
+  const companyMailingAddressMap = new Map<string, string>();
+
+  // First pass: process mailing addresses and create MailingAddress entities
+  for (const result of allDataResults) {
+    if (result.error) {
+      continue;
+    }
+
+    if (result.type === 'person_mailing_address') {
+      // Create mailing address entity
+      const mailingAddressEntity = createMailingAddressEntity(result.cid, result.data);
+      context.MailingAddress.set(mailingAddressEntity);
+      // Map person CID to mailing address ID
+      personMailingAddressMap.set(result.personCid, result.cid);
+    } else if (result.type === 'company_mailing_address') {
+      // Create mailing address entity
+      const mailingAddressEntity = createMailingAddressEntity(result.cid, result.data);
+      context.MailingAddress.set(mailingAddressEntity);
+      // Map company CID to mailing address ID
+      companyMailingAddressMap.set(result.companyCid, result.cid);
+    }
+  }
+
   // Process all results
   for (const result of allDataResults) {
     if (result.error) {
@@ -759,12 +898,7 @@ export async function processCountyData(context: any, metadata: any, cid: string
       continue;
     }
 
-    if (result.type === 'structure') {
-      structureId = result.cid;
-      const structureEntity = createStructureEntity(result.cid, result.data);
-      context.Structure.set(structureEntity);
-
-    } else if (result.type === 'property') {
+    if (result.type === 'property') {
       propertyDataId = result.cid;
       const propertyEntity = createPropertyEntity(result.cid, result.data);
       context.Property.set(propertyEntity);
@@ -798,23 +932,20 @@ export async function processCountyData(context: any, metadata: any, cid: string
       context.Tax.set(taxEntity);
       taxEntities.push(taxEntity);
 
-    } else if (result.type === 'utility') {
-      utilityId = result.cid;
-      const utilityEntity = createUtilityEntity(result.cid, result.data);
-      context.Utility.set(utilityEntity);
-
     } else if (result.type === 'flood_storm') {
       floodStormId = result.cid;
       const floodStormEntity = createFloodStormEntity(result.cid, result.data);
       context.FloodStormInformation.set(floodStormEntity);
 
     } else if (result.type === 'person') {
-      const personEntity = createPersonEntity(result.cid, result.data, propertyEntityId);
+      const mailingAddressId = personMailingAddressMap.get(result.cid);
+      const personEntity = createPersonEntity(result.cid, result.data, propertyEntityId, mailingAddressId);
       context.Person.set(personEntity);
       personEntities.push(personEntity);
 
     } else if (result.type === 'company') {
-      const companyEntity = createCompanyEntity(result.cid, result.data, propertyEntityId);
+      const mailingAddressId = companyMailingAddressMap.get(result.cid);
+      const companyEntity = createCompanyEntity(result.cid, result.data, propertyEntityId, mailingAddressId);
       context.Company.set(companyEntity);
       companyEntities.push(companyEntity);
 
@@ -822,6 +953,12 @@ export async function processCountyData(context: any, metadata: any, cid: string
       const layoutEntity = createLayoutEntity(result.cid, result.data, propertyEntityId);
       context.Layout.set(layoutEntity);
       layoutEntities.push(layoutEntity);
+    } else if (result.type === 'layout_metadata') {
+      // Skip - already processed above
+      continue;
+    } else if (result.type === 'person_mailing_address' || result.type === 'company_mailing_address') {
+      // Skip - already processed above
+      continue;
     } else if (result.type === 'file') {
       const fileEntity = createFileEntity(result.cid, result.data, propertyEntityId);
       context.File.set(fileEntity);
@@ -839,12 +976,10 @@ export async function processCountyData(context: any, metadata: any, cid: string
   }
 
   return {
-    structureId,
     addressId,
     propertyDataId,
     ipfsId,
     lotId,
-    utilityId,
     floodStormId,
     parcelIdentifier,
     salesHistoryEntities,
