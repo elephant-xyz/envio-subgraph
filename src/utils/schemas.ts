@@ -5,9 +5,6 @@ import { S } from "envio";
 export const ipfsMetadataSchema = S.schema({
   label: S.string,
   relationships: S.optional(S.schema({
-    property_has_structure: S.optional(S.schema({
-      "/": S.string
-    })),
     property_has_address: S.optional(S.schema({
       "/": S.string
     })),
@@ -20,9 +17,6 @@ export const ipfsMetadataSchema = S.schema({
     property_has_tax: S.optional(S.array(S.schema({
       "/": S.string
     }))),
-    property_has_utility: S.optional(S.schema({
-      "/": S.string
-    })),
     property_has_flood_storm_information: S.optional(S.schema({
       "/": S.string
     })),
@@ -48,6 +42,24 @@ export const ipfsMetadataSchema = S.schema({
       "/": S.string
     })),
     address_has_fact_sheet: S.optional(S.array(S.schema({
+      "/": S.string
+    }))),
+    person_has_mailing_address: S.optional(S.array(S.schema({
+      "/": S.string
+    }))),
+    company_has_mailing_address: S.optional(S.array(S.schema({
+      "/": S.string
+    })))
+  }))
+});
+
+// Layout Metadata Schema (for layout IPFS objects)
+export const layoutMetadataSchema = S.schema({
+  relationships: S.optional(S.schema({
+    layout_has_Structure: S.optional(S.array(S.schema({
+      "/": S.string
+    }))),
+    layout_has_utility: S.optional(S.array(S.schema({
       "/": S.string
     })))
   }))
@@ -137,6 +149,12 @@ export const addressSchema = S.schema({
   street_suffix_type: S.optional(S.string),
   township: S.optional(S.string),
   unit_identifier: S.optional(S.string),
+  unnormalized_address: S.optional(S.string),
+});
+
+// Mailing Address Data Schema
+export const mailingAddressSchema = S.schema({
+  unnormalized_address: S.optional(S.string),
 });
 
 // Property Data Schema
@@ -311,14 +329,16 @@ export const fileSchema = S.schema({
 
 // Deed Data Schema
 export const deedSchema = S.schema({
-  deed_type: S.string,
+  deed_type: S.optional(S.string),
 });
 
 // Inferred Types
 export type IpfsMetadata = S.Infer<typeof ipfsMetadataSchema>;
+export type LayoutMetadata = S.Infer<typeof layoutMetadataSchema>;
 export type RelationshipData = S.Infer<typeof relationshipSchema>;
 export type StructureData = S.Infer<typeof structureSchema>;
 export type AddressData = S.Infer<typeof addressSchema>;
+export type MailingAddressData = S.Infer<typeof mailingAddressSchema>;
 export type PropertyData = S.Infer<typeof propertySchema>;
 export type IpfsFactSheetData = S.Infer<typeof ipfsFactSheetSchema>;
 export type LotData = S.Infer<typeof lotDataSchema>;

@@ -62,6 +62,24 @@ type Structure {
   window_glazing_type: String
   window_operation_type: String
   window_screen_material: String
+  exterior_door_installation_date: String
+  exterior_wall_condition_primary: String
+  exterior_wall_condition_secondary: String
+  exterior_wall_insulation_type_primary: String
+  exterior_wall_insulation_type_secondary: String
+  finished_base_area: Int
+  finished_basement_area: Int
+  finished_upper_story_area: Int
+  foundation_repair_date: String
+  interior_wall_structure_material_primary: String
+  interior_wall_structure_material_secondary: String
+  number_of_buildings: Int
+  siding_installation_date: String
+  unfinished_base_area: Int
+  unfinished_basement_area: Int
+  unfinished_upper_story_area: Int
+  window_installation_date: String
+  layout_id: String
 }
 
 
@@ -89,6 +107,12 @@ type Address {
   street_suffix: String
   unit_identifier: String
   township: String
+  unnormalized_address: String
+}
+
+type MailingAddress {
+  id: ID!
+  unnormalized_address: String
 }
 
 type Property {
@@ -107,6 +131,10 @@ type Property {
   subdivision: String
   total_area: String
   zoning: String
+  build_status: String
+  ownership_estate_type: String
+  property_usage_type: String
+  structure_form: String
 }
 
 type Ipfs {
@@ -183,6 +211,29 @@ type Utility {
   solar_panel_type: String
   solar_panel_type_other_description: String
   water_source_type: String
+  electrical_panel_installation_date: String
+  electrical_rewire_date: String
+  heating_fuel_type: String
+  hvac_capacity_kw: Float
+  hvac_capacity_tons: Float
+  hvac_equipment_component: String
+  hvac_equipment_manufacturer: String
+  hvac_equipment_model: String
+  hvac_installation_date: String
+  hvac_seer_rating: Float
+  hvac_system_configuration: String
+  plumbing_system_installation_date: String
+  sewer_connection_date: String
+  solar_installation_date: String
+  solar_inverter_installation_date: String
+  solar_inverter_manufacturer: String
+  solar_inverter_model: String
+  water_connection_date: String
+  water_heater_installation_date: String
+  water_heater_manufacturer: String
+  water_heater_model: String
+  well_installation_date: String
+  layout_id: String
 }
 
 type FloodStormInformation {
@@ -210,6 +261,7 @@ type Person {
   us_citizenship_status: String
   veteran_status: Boolean
   property_id: String!
+  mailing_address: MailingAddress
 }
 
 type Company {
@@ -217,6 +269,7 @@ type Company {
   name: String
   request_identifier: String
   property_id: String!
+  mailing_address: MailingAddress
 }
 
 type Layout {
@@ -255,6 +308,20 @@ type Layout {
   window_material_type: String
   window_treatment_type: String
   property_id: String!
+  adjustable_area_sq_ft: Int
+  area_under_air_sq_ft: Int
+  bathroom_renovation_date: String
+  building_number: Int
+  flooring_installation_date: String
+  heated_area_sq_ft: Int
+  kitchen_renovation_date: String
+  livable_area_sq_ft: Int
+  pool_installation_date: String
+  spa_installation_date: String
+  story_type: String
+  total_area_sq_ft: Int
+  structures: [Structure!]! @derivedFrom(field: "layout_id")
+  utilities: [Utility!]! @derivedFrom(field: "layout_id")
 }
 
 type File {
@@ -271,7 +338,7 @@ type File {
 
 type Deed {
   id: ID!
-  deed_type: String!
+  deed_type: String
   sales_history_id: String
   files: [File!]! @derivedFrom(field: "deed_id")
 }
@@ -285,12 +352,10 @@ type DataSubmittedWithLabel {
   label: String!
   id_source: String!
   datetime: BigInt
-  structure: Structure
   address: Address
   property: Property
   ipfs: Ipfs
   lot: Lot
-  utility: Utility
   flood_storm_information: FloodStormInformation
   sales_history: [SalesHistory!]! @derivedFrom(field: "property_id")
   tax: [Tax!]! @derivedFrom(field: "property_id")
