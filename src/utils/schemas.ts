@@ -11,7 +11,9 @@ export const ipfsMetadataSchema = S.schema({
     property_has_address: S.optional(S.schema({
       "/": S.string
     })),
-    // Removed property_has_lot
+    property_has_lot: S.optional(S.array(S.schema({
+      "/": S.string
+    }))),
     property_has_sales_history: S.optional(S.array(S.schema({
       "/": S.string
     }))),
@@ -128,11 +130,13 @@ export const addressSchema = S.schema({
   street_suffix_type: S.optional(S.string),
   township: S.optional(S.string),
   unit_identifier: S.optional(S.string),
+  unnormalized_address: S.optional(S.string),
 });
 
 // Property Data Schema
 export const propertySchema = S.schema({
   property_type: S.optional(S.string),
+  build_status: S.optional(S.string),
   property_structure_built_year: S.optional(S.string),
   property_effective_built_year: S.optional(S.string),
   parcel_identifier: S.optional(S.string),
@@ -141,8 +145,11 @@ export const propertySchema = S.schema({
   livable_floor_area: S.optional(S.string),
   number_of_units: S.optional(S.number),
   number_of_units_type: S.optional(S.string),
+  ownership_estate_type: S.optional(S.string),
   property_legal_description_text: S.optional(S.string),
+  property_usage_type: S.optional(S.string),
   request_identifier: S.optional(S.string),
+  structure_form: S.optional(S.string),
   subdivision: S.optional(S.string),
   total_area: S.optional(S.string),
   zoning: S.optional(S.string),
@@ -154,7 +161,10 @@ export const ipfsFactSheetSchema = S.schema({
   full_generation_command: S.optional(S.string),
 });
 
-// Removed Lot Data Schema
+// Lot Data Schema
+export const lotSchema = S.schema({
+  request_identifier: S.optional(S.string),
+});
 
 // Sales History Data Schema
 export const salesHistorySchema = S.schema({
@@ -270,7 +280,7 @@ export type StructureData = S.Infer<typeof structureSchema>;
 export type AddressData = S.Infer<typeof addressSchema>;
 export type PropertyData = S.Infer<typeof propertySchema>;
 export type IpfsFactSheetData = S.Infer<typeof ipfsFactSheetSchema>;
-// Removed LotData type
+export type LotData = S.Infer<typeof lotSchema>;
 export type SalesHistoryData = S.Infer<typeof salesHistorySchema>;
 export type TaxData = S.Infer<typeof taxSchema>;
 export type UtilityData = S.Infer<typeof utilitySchema>;

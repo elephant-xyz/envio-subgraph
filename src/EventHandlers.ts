@@ -17,6 +17,10 @@ import { getAllowedSubmitters, processCountyData } from "./utils/eventHelpers";
 // Get allowed submitters from environment variables - this will crash if none found
 const allowedSubmitters = getAllowedSubmitters();
 
+// Flag to enable minimal mode - only fetch propertyHash and dataHash CIDs
+// Set ENVIO_MINIMAL_MODE=true to enable
+const MINIMAL_MODE = process.env.ENVIO_MINIMAL_MODE === 'true';
+
 ERC1967Proxy.DataGroupHeartBeat.handler(async ({ event, context }) => {
   // Manual check required since submitter is not an indexed parameter
   if (!allowedSubmitters.includes(event.params.submitter)) {
@@ -127,7 +131,42 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
 
   context.ERC1967Proxy_DataSubmitted.set(entity);
 
-  const cid = bytes32ToCID(event.params.dataHash);
+  // Transform both propertyHash and dataHash to CIDs
+  // Note: event.params.propertyHash and event.params.dataHash come as hex strings
+  // bytes32ToCID handles both formats with or without 0x prefix
+  const propertyHashCid = bytes32ToCID(event.params.propertyHash);
+  const dataHashCid = bytes32ToCID(event.params.dataHash);
+
+  // Minimal mode: only store propertyHash CID and dataHash CID
+  if (MINIMAL_MODE) {
+    const minimalEntity: DataSubmittedWithLabel = {
+      id: `${event.chainId}_${event.params.propertyHash}`,
+      propertyHash: event.params.propertyHash,
+      property_cid: propertyHashCid,
+      submitter: event.params.submitter,
+      dataHash: event.params.dataHash,
+      cid: dataHashCid,
+      label: "Minimal", // Placeholder label
+      id_source: "propertyHash",
+      address_id: undefined,
+      property_id: undefined,
+      ipfs_id: undefined,
+      datetime: BigInt(event.block.timestamp),
+    };
+
+    context.DataSubmittedWithLabel.set(minimalEntity);
+    
+    context.log.info(`Created minimal DataSubmitted entity with CIDs`, {
+      propertyHashCid,
+      dataHashCid,
+      propertyHash: event.params.propertyHash,
+      dataHash: event.params.dataHash,
+    });
+    return;
+  }
+
+  // Full mode: existing processing logic
+  const cid = dataHashCid;
 
   try {
     const metadata = await context.effect(getIpfsMetadata, cid);
@@ -215,6 +254,7 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
     const labelEntity: DataSubmittedWithLabel = {
       id: mainEntityId,
       propertyHash: event.params.propertyHash, // Always update with latest propertyHash
+      property_cid: propertyHashCid,
       submitter: event.params.submitter,
       dataHash: event.params.dataHash,
       cid: cid,

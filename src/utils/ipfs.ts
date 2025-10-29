@@ -8,13 +8,21 @@ import {
     ipfsFactSheetSchema,
     salesHistorySchema,
     taxSchema,
+    structureSchema,
+    utilitySchema,
+    layoutSchema,
+    lotSchema,
     type IpfsMetadata,
     type RelationshipData,
     type AddressData,
     type PropertyData,
     type IpfsFactSheetData,
     type SalesHistoryData,
-    type TaxData
+    type TaxData,
+    type StructureData,
+    type UtilityData,
+    type LayoutData,
+    type LotData
 } from "./schemas";
 
 // Environment variable configuration for each data type
@@ -409,6 +417,7 @@ export const getAddressData = configs.address ? experimental_createEffect(
                 street_suffix_type: data.street_suffix_type || undefined,
                 township: data.township || undefined,
                 unit_identifier: data.unit_identifier || undefined,
+                unnormalized_address: data.unnormalized_address || undefined,
             })
         );
     }
@@ -431,6 +440,7 @@ export const getPropertyData = experimental_createEffect(
             (data: any) => data && typeof data === 'object',
             (data: any) => ({
                 property_type: data.property_type || undefined,
+                build_status: data.build_status || undefined,
                 property_structure_built_year: data.property_structure_built_year ? String(data.property_structure_built_year) : undefined,
                 property_effective_built_year: data.property_effective_built_year ? String(data.property_effective_built_year) : undefined,
                 parcel_identifier: data.parcel_identifier || undefined,
@@ -439,8 +449,11 @@ export const getPropertyData = experimental_createEffect(
                 livable_floor_area: data.livable_floor_area || undefined,
                 number_of_units: data.number_of_units || undefined,
                 number_of_units_type: data.number_of_units_type || undefined,
+                ownership_estate_type: data.ownership_estate_type || undefined,
                 property_legal_description_text: data.property_legal_description_text || undefined,
+                property_usage_type: data.property_usage_type || undefined,
                 request_identifier: data.request_identifier || undefined,
+                structure_form: data.structure_form || undefined,
                 subdivision: data.subdivision || undefined,
                 total_area: data.total_area || undefined,
                 zoning: data.zoning || undefined,
@@ -526,6 +539,190 @@ export const getIpfsFactSheetData = experimental_createEffect(
             (data: any) => ({
                 ipfs_url: data.ipfs_url || undefined,
                 full_generation_command: data.full_generation_command || undefined,
+            })
+        );
+    }
+);
+
+// Structure data - uses property gateway (REQUIRED)
+export const getStructureData = experimental_createEffect(
+    {
+        name: "getStructureData",
+        input: S.string,
+        output: structureSchema,
+        cache: true,
+    },
+    async ({ input: cid, context }) => {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "structure data",
+            propertyConfig,
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
+                roof_date: data.roof_date || undefined,
+                architectural_style_type: data.architectural_style_type || undefined,
+                attachment_type: data.attachment_type || undefined,
+                ceiling_condition: data.ceiling_condition || undefined,
+                ceiling_height_average: data.ceiling_height_average || undefined,
+                ceiling_insulation_type: data.ceiling_insulation_type || undefined,
+                ceiling_structure_material: data.ceiling_structure_material || undefined,
+                ceiling_surface_material: data.ceiling_surface_material || undefined,
+                exterior_door_material: data.exterior_door_material || undefined,
+                exterior_wall_condition: data.exterior_wall_condition || undefined,
+                exterior_wall_insulation_type: data.exterior_wall_insulation_type || undefined,
+                exterior_wall_material_primary: data.exterior_wall_material_primary || undefined,
+                exterior_wall_material_secondary: data.exterior_wall_material_secondary || undefined,
+                flooring_condition: data.flooring_condition || undefined,
+                flooring_material_primary: data.flooring_material_primary || undefined,
+                flooring_material_secondary: data.flooring_material_secondary || undefined,
+                foundation_condition: data.foundation_condition || undefined,
+                foundation_material: data.foundation_material || undefined,
+                foundation_type: data.foundation_type || undefined,
+                foundation_waterproofing: data.foundation_waterproofing || undefined,
+                gutters_condition: data.gutters_condition || undefined,
+                gutters_material: data.gutters_material || undefined,
+                interior_door_material: data.interior_door_material || undefined,
+                interior_wall_condition: data.interior_wall_condition || undefined,
+                interior_wall_finish_primary: data.interior_wall_finish_primary || undefined,
+                interior_wall_finish_secondary: data.interior_wall_finish_secondary || undefined,
+                interior_wall_structure_material: data.interior_wall_structure_material || undefined,
+                interior_wall_surface_material_primary: data.interior_wall_surface_material_primary || undefined,
+                interior_wall_surface_material_secondary: data.interior_wall_surface_material_secondary || undefined,
+                number_of_stories: data.number_of_stories || undefined,
+                primary_framing_material: data.primary_framing_material || undefined,
+                request_identifier: data.request_identifier || undefined,
+                roof_age_years: data.roof_age_years || undefined,
+                roof_condition: data.roof_condition || undefined,
+                roof_covering_material: data.roof_covering_material || undefined,
+                roof_design_type: data.roof_design_type || undefined,
+                roof_material_type: data.roof_material_type || undefined,
+                roof_structure_material: data.roof_structure_material || undefined,
+                roof_underlayment_type: data.roof_underlayment_type || undefined,
+                secondary_framing_material: data.secondary_framing_material || undefined,
+                structural_damage_indicators: data.structural_damage_indicators || undefined,
+                subfloor_material: data.subfloor_material || undefined,
+                window_frame_material: data.window_frame_material || undefined,
+                window_glazing_type: data.window_glazing_type || undefined,
+                window_operation_type: data.window_operation_type || undefined,
+                window_screen_material: data.window_screen_material || undefined,
+            })
+        );
+    }
+);
+
+// Utility data - uses property gateway (REQUIRED)
+export const getUtilityData = experimental_createEffect(
+    {
+        name: "getUtilityData",
+        input: S.string,
+        output: utilitySchema,
+        cache: true,
+    },
+    async ({ input: cid, context }) => {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "utility data",
+            propertyConfig,
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
+                cooling_system_type: data.cooling_system_type || undefined,
+                electrical_panel_capacity: data.electrical_panel_capacity || undefined,
+                electrical_wiring_type: data.electrical_wiring_type || undefined,
+                electrical_wiring_type_other_description: data.electrical_wiring_type_other_description || undefined,
+                heating_system_type: data.heating_system_type || undefined,
+                hvac_condensing_unit_present: data.hvac_condensing_unit_present || undefined,
+                hvac_unit_condition: data.hvac_unit_condition || undefined,
+                hvac_unit_issues: data.hvac_unit_issues || undefined,
+                plumbing_system_type: data.plumbing_system_type || undefined,
+                plumbing_system_type_other_description: data.plumbing_system_type_other_description || undefined,
+                public_utility_type: data.public_utility_type || undefined,
+                request_identifier: data.request_identifier || undefined,
+                sewer_type: data.sewer_type || undefined,
+                smart_home_features: data.smart_home_features || undefined,
+                smart_home_features_other_description: data.smart_home_features_other_description || undefined,
+                solar_inverter_visible: data.solar_inverter_visible || undefined,
+                solar_panel_present: data.solar_panel_present || undefined,
+                solar_panel_type: data.solar_panel_type || undefined,
+                solar_panel_type_other_description: data.solar_panel_type_other_description || undefined,
+                water_source_type: data.water_source_type || undefined,
+            })
+        );
+    }
+);
+
+// Layout data - uses property gateway (REQUIRED)
+export const getLayoutData = experimental_createEffect(
+    {
+        name: "getLayoutData",
+        input: S.string,
+        output: layoutSchema,
+        cache: true,
+    },
+    async ({ input: cid, context }) => {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "layout data",
+            propertyConfig,
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
+                cabinet_style: data.cabinet_style || undefined,
+                clutter_level: data.clutter_level || undefined,
+                condition_issues: data.condition_issues || undefined,
+                countertop_material: data.countertop_material || undefined,
+                decor_elements: data.decor_elements || undefined,
+                design_style: data.design_style || undefined,
+                fixture_finish_quality: data.fixture_finish_quality || undefined,
+                floor_level: data.floor_level || undefined,
+                flooring_material_type: data.flooring_material_type || undefined,
+                flooring_wear: data.flooring_wear || undefined,
+                furnished: data.furnished || undefined,
+                has_windows: data.has_windows || undefined,
+                is_exterior: data.is_exterior || false,
+                is_finished: data.is_finished || false,
+                lighting_features: data.lighting_features || undefined,
+                natural_light_quality: data.natural_light_quality || undefined,
+                paint_condition: data.paint_condition || undefined,
+                pool_condition: data.pool_condition || undefined,
+                pool_equipment: data.pool_equipment || undefined,
+                pool_surface_type: data.pool_surface_type || undefined,
+                pool_type: data.pool_type || undefined,
+                pool_water_quality: data.pool_water_quality || undefined,
+                request_identifier: data.request_identifier || undefined,
+                safety_features: data.safety_features || undefined,
+                size_square_feet: data.size_square_feet || undefined,
+                spa_type: data.spa_type || undefined,
+                space_index: data.space_index || 0,
+                space_type: data.space_type || undefined,
+                view_type: data.view_type || undefined,
+                visible_damage: data.visible_damage || undefined,
+                window_design_type: data.window_design_type || undefined,
+                window_material_type: data.window_material_type || undefined,
+                window_treatment_type: data.window_treatment_type || undefined,
+            })
+        );
+    }
+);
+
+// Lot data - uses property gateway (REQUIRED)
+export const getLotData = experimental_createEffect(
+    {
+        name: "getLotData",
+        input: S.string,
+        output: lotSchema,
+        cache: true,
+    },
+    async ({ input: cid, context }) => {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "lot data",
+            propertyConfig,
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
+                request_identifier: data.request_identifier || undefined,
             })
         );
     }
