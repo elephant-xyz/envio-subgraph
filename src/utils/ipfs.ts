@@ -939,6 +939,18 @@ export const getLayoutData = experimental_createEffect(
                 window_design_type: data.window_design_type || undefined,
                 window_material_type: data.window_material_type || undefined,
                 window_treatment_type: data.window_treatment_type || undefined,
+                adjustable_area_sq_ft: data.adjustable_area_sq_ft || undefined,
+                area_under_air_sq_ft: data.area_under_air_sq_ft || undefined,
+                bathroom_renovation_date: data.bathroom_renovation_date || undefined,
+                building_number: data.building_number || undefined,
+                flooring_installation_date: data.flooring_installation_date || undefined,
+                heated_area_sq_ft: data.heated_area_sq_ft || undefined,
+                kitchen_renovation_date: data.kitchen_renovation_date || undefined,
+                livable_area_sq_ft: data.livable_area_sq_ft || undefined,
+                pool_installation_date: data.pool_installation_date || undefined,
+                spa_installation_date: data.spa_installation_date || undefined,
+                story_type: data.story_type || undefined,
+                total_area_sq_ft: data.total_area_sq_ft || undefined,
             })
         );
     }

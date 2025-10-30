@@ -316,6 +316,18 @@ export const layoutSchema = S.schema({
   window_design_type: S.optional(S.string),
   window_material_type: S.optional(S.string),
   window_treatment_type: S.optional(S.string),
+  adjustable_area_sq_ft: S.optional(S.number),
+  area_under_air_sq_ft: S.optional(S.number),
+  bathroom_renovation_date: S.optional(S.string),
+  building_number: S.optional(S.number),
+  flooring_installation_date: S.optional(S.string),
+  heated_area_sq_ft: S.optional(S.number),
+  kitchen_renovation_date: S.optional(S.string),
+  livable_area_sq_ft: S.optional(S.number),
+  pool_installation_date: S.optional(S.string),
+  spa_installation_date: S.optional(S.string),
+  story_type: S.optional(S.string),
+  total_area_sq_ft: S.optional(S.number),
 });
 
 // File Data Schema
