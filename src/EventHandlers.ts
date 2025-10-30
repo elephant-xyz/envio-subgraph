@@ -183,23 +183,8 @@ ERC1967Proxy.DataSubmitted.handler(async ({ event, context }) => {
             context.Tax.set(updatedTaxEntity);
           }
 
-          // Need to update person entities with correct property_id
-          for (const personEntity of result.personEntities) {
-            const updatedPersonEntity = {
-              ...personEntity,
-              property_id: mainEntityId
-            };
-            context.Person.set(updatedPersonEntity);
-          }
-
-          // Need to update company entities with correct property_id
-          for (const companyEntity of result.companyEntities) {
-            const updatedCompanyEntity = {
-              ...companyEntity,
-              property_id: mainEntityId
-            };
-            context.Company.set(updatedCompanyEntity);
-          }
+          // Note: Person and Company entities are linked to sales_history, not property
+          // so they don't need to be updated with mainEntityId
 
           // Need to update layout entities with correct property_id
           for (const layoutEntity of result.layoutEntities) {

@@ -169,6 +169,8 @@ type SalesHistory {
   sale_type: String
   property_id: String!
   deeds: [Deed!]! @derivedFrom(field: "sales_history_id")
+  persons: [Person!]! @derivedFrom(field: "sales_history_id")
+  companies: [Company!]! @derivedFrom(field: "sales_history_id")
 }
 
 type Tax {
@@ -260,7 +262,7 @@ type Person {
   suffix_name: String
   us_citizenship_status: String
   veteran_status: Boolean
-  property_id: String!
+  sales_history_id: String!
   mailing_address: MailingAddress
 }
 
@@ -268,7 +270,7 @@ type Company {
   id: ID!
   name: String
   request_identifier: String
-  property_id: String!
+  sales_history_id: String!
   mailing_address: MailingAddress
 }
 
@@ -300,8 +302,9 @@ type Layout {
   safety_features: String
   size_square_feet: Float
   spa_type: String
-  space_index: Int!
+  space_index: Int
   space_type: String
+  space_type_index: String
   view_type: String
   visible_damage: String
   window_design_type: String
@@ -359,8 +362,6 @@ type DataSubmittedWithLabel {
   flood_storm_information: FloodStormInformation
   sales_history: [SalesHistory!]! @derivedFrom(field: "property_id")
   tax: [Tax!]! @derivedFrom(field: "property_id")
-  persons: [Person!]! @derivedFrom(field: "property_id")
-  companies: [Company!]! @derivedFrom(field: "property_id")
   layouts: [Layout!]! @derivedFrom(field: "property_id")
   files: [File!]! @derivedFrom(field: "property_id")
 }

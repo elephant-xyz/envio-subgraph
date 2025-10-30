@@ -20,10 +20,10 @@ export const ipfsMetadataSchema = S.schema({
     property_has_flood_storm_information: S.optional(S.schema({
       "/": S.string
     })),
-    person_has_property: S.optional(S.array(S.schema({
+    sales_history_has_person: S.optional(S.array(S.schema({
       "/": S.string
     }))),
-    company_has_property: S.optional(S.array(S.schema({
+    sales_history_has_company: S.optional(S.array(S.schema({
       "/": S.string
     }))),
     property_has_layout: S.optional(S.array(S.schema({
@@ -308,8 +308,9 @@ export const layoutSchema = S.schema({
   safety_features: S.optional(S.string),
   size_square_feet: S.optional(S.number),
   spa_type: S.optional(S.string),
-  space_index: S.number,
+  space_index: S.optional(S.number),
   space_type: S.optional(S.string),
+  space_type_index: S.optional(S.string),
   view_type: S.optional(S.string),
   visible_damage: S.optional(S.string),
   window_design_type: S.optional(S.string),
