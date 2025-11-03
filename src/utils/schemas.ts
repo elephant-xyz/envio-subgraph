@@ -20,15 +20,27 @@ export const ipfsMetadataSchema = S.schema({
     property_has_tax: S.optional(S.array(S.schema({
       "/": S.string
     }))),
+    property_has_improvement: S.optional(S.array(S.schema({
+      "/": S.string
+    }))),
     property_has_utility: S.optional(S.schema({
       "/": S.string
     })),
+    property_has_inspection: S.optional(S.array(S.schema({
+      "/": S.string
+    }))),
     // Removed property_has_flood_storm_information
     // Removed person_has_property and company_has_property
     property_has_layout: S.optional(S.array(S.schema({
       "/": S.string
     }))),
     property_has_file: S.optional(S.array(S.schema({
+      "/": S.string
+    }))),
+    property_has_communication: S.optional(S.array(S.schema({
+      "/": S.string
+    }))),
+    property_has_company: S.optional(S.array(S.schema({
       "/": S.string
     }))),
     deed_has_file: S.optional(S.array(S.schema({
@@ -104,6 +116,42 @@ export const structureSchema = S.schema({
   window_glazing_type: S.optional(S.string),
   window_operation_type: S.optional(S.string),
   window_screen_material: S.optional(S.string),
+});
+
+// Inspection Data Schema (Elephant Property_Improvement.inspection)
+export const inspectionSchema = S.schema({
+  completed_date: S.optional(S.string),
+  completed_time: S.optional(S.string),
+  inspection_number: S.optional(S.string),
+  inspection_status: S.optional(S.string),
+  permit_number: S.optional(S.string),
+  requested_date: S.optional(S.string),
+  scheduled_date: S.optional(S.string),
+});
+
+// Communication Data Schema (minimal for now)
+export const communicationSchema = S.schema({
+  email_address: S.optional(S.string),
+  phone_number: S.optional(S.string),
+});
+
+// Company Data Schema (minimal for now)
+export const companySchema = S.schema({
+  name: S.optional(S.string),
+  request_identifier: S.optional(S.string),
+});
+
+// Person Data Schema (minimal)
+export const personSchema = S.schema({
+  birth_date: S.optional(S.string),
+  first_name: S.optional(S.string),
+  last_name: S.optional(S.string),
+  middle_name: S.optional(S.string),
+  prefix_name: S.optional(S.string),
+  suffix_name: S.optional(S.string),
+  us_citizenship_status: S.optional(S.string),
+  veteran_status: S.optional(S.boolean),
+  request_identifier: S.optional(S.string),
 });
 
 // Address Data Schema
@@ -191,6 +239,32 @@ export const taxSchema = S.schema({
   yearly_tax_amount: S.optional(S.number),
 });
 
+// Improvement Data Schema
+export const improvementSchema = S.schema({
+  // Legacy/basic fields (kept for compatibility)
+  improvement_type: S.optional(S.string),
+  improvement_subtype: S.optional(S.string),
+  description: S.optional(S.string),
+  year_completed: S.optional(S.number),
+  cost_amount: S.optional(S.number),
+  // Elephant Property_Improvement.property_improvement detailed fields
+  application_received_date: S.optional(S.string),
+  completion_date: S.optional(S.string),
+  contractor_type: S.optional(S.string),
+  final_inspection_date: S.optional(S.string),
+  improvement_action: S.optional(S.string),
+  improvement_status: S.optional(S.string),
+  is_disaster_recovery: S.optional(S.boolean),
+  is_owner_builder: S.optional(S.boolean),
+  permit_close_date: S.optional(S.string),
+  permit_issue_date: S.optional(S.string),
+  permit_number: S.optional(S.string),
+  permit_required: S.optional(S.boolean),
+  private_provider_inspections: S.optional(S.boolean),
+  private_provider_plan_review: S.optional(S.boolean),
+  request_identifier: S.optional(S.string),
+});
+
 // Utility Data Schema
 export const utilitySchema = S.schema({
   cooling_system_type: S.optional(S.string),
@@ -273,6 +347,13 @@ export const deedSchema = S.schema({
   deed_type: S.string,
 });
 
+// Parcel Data Schema (used only to derive parcel_identifier; not indexed)
+export const parcelSchema = S.schema({
+  parcel_identifier: S.optional(S.string),
+  parcel_id: S.optional(S.string),
+  request_identifier: S.optional(S.string),
+});
+
 // Inferred Types
 export type IpfsMetadata = S.Infer<typeof ipfsMetadataSchema>;
 export type RelationshipData = S.Infer<typeof relationshipSchema>;
@@ -288,3 +369,6 @@ export type UtilityData = S.Infer<typeof utilitySchema>;
 export type LayoutData = S.Infer<typeof layoutSchema>;
 export type FileData = S.Infer<typeof fileSchema>;
 export type DeedData = S.Infer<typeof deedSchema>;
+export type ImprovementData = S.Infer<typeof improvementSchema>;
+export type ParcelData = S.Infer<typeof parcelSchema>;
+export type PersonData = S.Infer<typeof personSchema>;

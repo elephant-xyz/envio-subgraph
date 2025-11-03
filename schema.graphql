@@ -75,6 +75,7 @@ type Ipfs {
 # Optional detailed classes
 type Structure {
   id: ID!
+  property_id: String!
   roof_date: String
   architectural_style_type: String
   attachment_type: String
@@ -125,6 +126,7 @@ type Structure {
 
 type Utility {
   id: ID!
+  property_id: String!
   cooling_system_type: String
   electrical_panel_capacity: String
   electrical_wiring_type: String
@@ -149,6 +151,7 @@ type Utility {
 
 type Layout {
   id: ID!
+  property_id: String!
   cabinet_style: String
   clutter_level: String
   condition_issues: String
@@ -217,6 +220,33 @@ type Tax {
 }
 
 
+type Improvement {
+  id: ID!
+  improvement_type: String
+  improvement_subtype: String
+  description: String
+  year_completed: Int
+  cost_amount: Float
+  request_identifier: String
+  property_id: String!
+  # Elephant detailed fields
+  application_received_date: String
+  completion_date: String
+  contractor_type: String
+  final_inspection_date: String
+  improvement_action: String
+  improvement_status: String
+  is_disaster_recovery: Boolean
+  is_owner_builder: Boolean
+  permit_close_date: String
+  permit_issue_date: String
+  permit_number: String
+  permit_required: Boolean
+  private_provider_inspections: Boolean
+  private_provider_plan_review: Boolean
+}
+
+
 
 
 
@@ -239,4 +269,59 @@ type DataSubmittedWithLabel {
   ipfs: Ipfs
   sales_history: [SalesHistory!]! @derivedFrom(field: "property_id")
   tax: [Tax!]! @derivedFrom(field: "property_id")
+  improvements: [Improvement!]! @derivedFrom(field: "property_id")
+  inspections: [Inspection!]! @derivedFrom(field: "property_id")
+  files: [File!]! @derivedFrom(field: "property_id")
+  structures: [Structure!]! @derivedFrom(field: "property_id")
+  utilities: [Utility!]! @derivedFrom(field: "property_id")
+  layouts: [Layout!]! @derivedFrom(field: "property_id")
+  contractors: [Company!]! @derivedFrom(field: "property_id")
+  contractor_people: [Person!]! @derivedFrom(field: "property_id")
 }
+
+# New: Inspection entity (Elephant Property_Improvement.inspection)
+type Inspection {
+  id: ID!
+  completed_date: String
+  completed_time: String
+  inspection_number: String
+  inspection_status: String
+  permit_number: String
+  requested_date: String
+  scheduled_date: String
+  property_id: String!
+}
+
+# New: File entity for property files
+type File {
+  id: ID!
+  document_type: String
+  file_format: String
+  ipfs_url: String
+  name: String
+  original_url: String
+  request_identifier: String
+  property_id: String!
+}
+
+# New: Company entity (contractor)
+type Company {
+  id: ID!
+  name: String
+  request_identifier: String
+  property_id: String!
+}
+
+# New: Person entity (contractor personnel)
+type Person {
+  id: ID!
+  first_name: String
+  last_name: String
+  birth_date: String
+  prefix_name: String
+  suffix_name: String
+  us_citizenship_status: String
+  veteran_status: Boolean
+  property_id: String!
+}
+

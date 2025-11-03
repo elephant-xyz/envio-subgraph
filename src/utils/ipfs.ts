@@ -8,10 +8,17 @@ import {
     ipfsFactSheetSchema,
     salesHistorySchema,
     taxSchema,
+    improvementSchema,
     structureSchema,
     utilitySchema,
     layoutSchema,
     lotSchema,
+  inspectionSchema,
+  fileSchema,
+  communicationSchema,
+  companySchema,
+  parcelSchema,
+  personSchema,
     type IpfsMetadata,
     type RelationshipData,
     type AddressData,
@@ -19,10 +26,13 @@ import {
     type IpfsFactSheetData,
     type SalesHistoryData,
     type TaxData,
+    type ImprovementData,
     type StructureData,
     type UtilityData,
     type LayoutData,
-    type LotData
+  type LotData,
+  type ParcelData,
+  type PersonData
 } from "./schemas";
 
 // Environment variable configuration for each data type
@@ -177,6 +187,7 @@ export function bytes32ToCID(dataHashHex: string): string {
 
 // Export configuration for use in EventHandlers
 export const dataTypeConfigs = configs;
+export const enableImprovements: boolean = process.env.ENVIO_ENABLE_IMPROVEMENT === 'true';
 
 // Helper function to build URL with optional token
 function buildGatewayUrl(baseUrl: string, cid: string, token: string | null): string {
@@ -350,9 +361,12 @@ export const getIpfsMetadata = experimental_createEffect(
             cid,
             "IPFS metadata",
             propertyConfig,
-            (data) => data && typeof data === 'object' && data.label && typeof data.label === 'string',
-            (data) => ({
-                label: data.label,
+            // Accept either a metadata node with label, or a relationship node with from/to to avoid infinite loops
+            (data: any) => data && typeof data === 'object' && (
+                (data.label && typeof data.label === 'string') || (data.from && data.to)
+            ),
+            (data: any) => ({
+                label: (data.label && typeof data.label === 'string') ? data.label : "Relationship",
                 relationships: data.relationships
             })
         );
@@ -417,7 +431,8 @@ export const getAddressData = configs.address ? experimental_createEffect(
                 street_suffix_type: data.street_suffix_type || undefined,
                 township: data.township || undefined,
                 unit_identifier: data.unit_identifier || undefined,
-                unnormalized_address: data.unnormalized_address || undefined,
+                // Prefer unnormalized_address, fallback to full_address if provided by source
+                unnormalized_address: (data.unnormalized_address || data.full_address) || undefined,
             })
         );
     }
@@ -443,7 +458,8 @@ export const getPropertyData = experimental_createEffect(
                 build_status: data.build_status || undefined,
                 property_structure_built_year: data.property_structure_built_year ? String(data.property_structure_built_year) : undefined,
                 property_effective_built_year: data.property_effective_built_year ? String(data.property_effective_built_year) : undefined,
-                parcel_identifier: data.parcel_identifier || undefined,
+                // ONLY accept parcel_identifier or parcel_id (never request_identifier)
+                parcel_identifier: (data.parcel_identifier || data.parcel_id) || undefined,
                 area_under_air: data.area_under_air || undefined,
                 historic_designation: data.historic_designation || undefined,
                 livable_floor_area: data.livable_floor_area || undefined,
@@ -520,6 +536,49 @@ export const getTaxData = configs.tax ? experimental_createEffect(
         );
     }
 ) : null;
+
+// Improvement data - uses property gateway (REQUIRED)
+export const getImprovementData = experimental_createEffect(
+    {
+        name: "getImprovementData",
+        input: S.string,
+        output: improvementSchema,
+        cache: true,
+    },
+    async ({ input: cid, context }) => {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "improvement data",
+            propertyConfig,
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
+                // legacy/basic
+                improvement_type: data.improvement_type || data.type || undefined,
+                improvement_subtype: data.improvement_subtype || data.subtype || undefined,
+                description: data.description || undefined,
+                year_completed: data.year_completed || data.year || undefined,
+                cost_amount: data.cost_amount || data.cost || undefined,
+                // elephant detailed
+                application_received_date: data.application_received_date || undefined,
+                completion_date: data.completion_date || undefined,
+                contractor_type: data.contractor_type || undefined,
+                final_inspection_date: data.final_inspection_date || undefined,
+                improvement_action: data.improvement_action || undefined,
+                improvement_status: data.improvement_status || undefined,
+                is_disaster_recovery: data.is_disaster_recovery || undefined,
+                is_owner_builder: data.is_owner_builder || undefined,
+                permit_close_date: data.permit_close_date || undefined,
+                permit_issue_date: data.permit_issue_date || undefined,
+                permit_number: data.permit_number || undefined,
+                permit_required: data.permit_required ?? undefined,
+                private_provider_inspections: data.private_provider_inspections ?? undefined,
+                private_provider_plan_review: data.private_provider_plan_review ?? undefined,
+                request_identifier: data.request_identifier || undefined,
+            })
+        );
+    }
+);
 
 // Fact sheet data - uses property gateway (REQUIRED)
 export const getIpfsFactSheetData = experimental_createEffect(
@@ -728,4 +787,246 @@ export const getLotData = experimental_createEffect(
     }
 );
 
+// Inspection data - uses property gateway (REQUIRED)
+export const getInspectionData = experimental_createEffect(
+    {
+        name: "getInspectionData",
+        input: S.string,
+        output: inspectionSchema,
+        cache: true,
+    },
+    async ({ input: cid, context }) => {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "inspection data",
+            propertyConfig,
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
+                completed_date: data.completed_date || undefined,
+                completed_time: data.completed_time || undefined,
+                inspection_number: data.inspection_number || undefined,
+                inspection_status: data.inspection_status || undefined,
+                permit_number: data.permit_number || undefined,
+                requested_date: data.requested_date || undefined,
+                scheduled_date: data.scheduled_date || undefined,
+            })
+        );
+    }
+);
+
+// File data - uses property gateway (REQUIRED)
+export const getFileData = experimental_createEffect(
+    {
+        name: "getFileData",
+        input: S.string,
+        output: fileSchema,
+        cache: true,
+    },
+    async ({ input: cid, context }) => {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "file data",
+            propertyConfig,
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
+                document_type: data.document_type || undefined,
+                file_format: data.file_format || undefined,
+                ipfs_url: data.ipfs_url || undefined,
+                name: data.name || undefined,
+                original_url: data.original_url || undefined,
+                request_identifier: data.request_identifier || undefined,
+            })
+        );
+    }
+);
+
+// Communication data - uses property gateway (REQUIRED)
+export const getCommunicationData = experimental_createEffect(
+    {
+        name: "getCommunicationData",
+        input: S.string,
+        output: communicationSchema,
+        cache: true,
+    },
+    async ({ input: cid, context }) => {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "communication data",
+            propertyConfig,
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
+                email_address: data.email_address || undefined,
+                phone_number: data.phone_number || undefined,
+            })
+        );
+    }
+);
+
+// Company data - uses property gateway (REQUIRED)
+export const getCompanyData = experimental_createEffect(
+    {
+        name: "getCompanyData",
+        input: S.string,
+        output: companySchema,
+        cache: true,
+    },
+    async ({ input: cid, context }) => {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "company data",
+            propertyConfig,
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
+                name: data.name || undefined,
+                request_identifier: data.request_identifier || undefined,
+            })
+        );
+    }
+);
+
+// Person data - uses property gateway (REQUIRED)
+export const getPersonData = experimental_createEffect(
+    {
+        name: "getPersonData",
+        input: S.string,
+        output: personSchema,
+        cache: true,
+    },
+    async ({ input: cid, context }) => {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "person data",
+            propertyConfig,
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
+                birth_date: data.birth_date || undefined,
+                first_name: data.first_name || undefined,
+                last_name: data.last_name || undefined,
+                middle_name: data.middle_name || undefined,
+                prefix_name: data.prefix_name || undefined,
+                suffix_name: data.suffix_name || undefined,
+                us_citizenship_status: data.us_citizenship_status || undefined,
+                veteran_status: data.veteran_status || undefined,
+                request_identifier: data.request_identifier || undefined,
+            })
+        );
+    }
+);
+
+// Parcel data - uses property gateway (REQUIRED) - for parcel_identifier derivation only
+export const getParcelData = experimental_createEffect(
+    {
+        name: "getParcelData",
+        input: S.string,
+        output: parcelSchema,
+        cache: true,
+    },
+    async ({ input: cid, context }) => {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "parcel data",
+            propertyConfig,
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
+                parcel_identifier: data.parcel_identifier || undefined,
+                parcel_id: data.parcel_id || undefined,
+                request_identifier: data.request_identifier || undefined,
+            })
+        );
+    }
+);
+
+
+// Seed/property seed data - uses property gateway (REQUIRED)
+export const getPropertySeedData = experimental_createEffect(
+    {
+        name: "getPropertySeedData",
+        input: S.schema({
+            cid: S.string,
+        }),
+        output: S.schema({
+            // We only care about address-related fields from the seed/property json
+            address: S.optional(S.string),
+            unnormalized_address: S.optional(S.string),
+            city_name: S.optional(S.string),
+            state_code: S.optional(S.string),
+            postal_code: S.optional(S.string),
+            country_code: S.optional(S.string),
+            // Allow passing through commonly present simple fields without strict typing
+            request_identifier: S.optional(S.string),
+        }),
+        cache: true,
+    },
+    async ({ input, context }) => {
+        return fetchDataWithInfiniteRetry(
+            context,
+            input.cid,
+            "property seed data",
+            propertyConfig,
+            (data: any) => data && typeof data === 'object',
+            (data: any) => {
+                const addrField = data.address;
+                const addrObj = addrField && typeof addrField === 'object' ? addrField : undefined;
+                const addressStr = typeof addrField === 'string' ? addrField : undefined;
+
+                const unnormalized =
+                    data.unnormalized_address ||
+                    data.unnormalizedAddress ||
+                    addrObj?.unnormalized_address ||
+                    addrObj?.unnormalizedAddress ||
+                    data.full_address ||
+                    addrObj?.full_address ||
+                    addressStr ||
+                    undefined;
+
+                const city = data.city_name || addrObj?.city_name || addrObj?.city || undefined;
+                const state = data.state_code || addrObj?.state_code || addrObj?.state || undefined;
+                const postal = data.postal_code || addrObj?.postal_code || addrObj?.zip || undefined;
+                const country = data.country_code || addrObj?.country_code || addrObj?.country || undefined;
+
+                return {
+                    address: addressStr || undefined,
+                    unnormalized_address: unnormalized || undefined,
+                    city_name: city || undefined,
+                    state_code: state || undefined,
+                    postal_code: postal || undefined,
+                    country_code: country || undefined,
+                    request_identifier: data.request_identifier || undefined,
+                };
+            }
+        );
+    }
+);
+
+// Unnormalized address fact sheet (contains full_address); uses property gateway
+export const getUnnormalizedAddressSheet = experimental_createEffect(
+    {
+        name: "getUnnormalizedAddressSheet",
+        input: S.string,
+        output: S.schema({
+            full_address: S.optional(S.string),
+            request_identifier: S.optional(S.string),
+        }),
+        cache: true,
+    },
+    async ({ input: cid, context }) => {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "unnormalized address sheet",
+            propertyConfig,
+            (data: any) => data && typeof data === 'object',
+            (data: any) => ({
+                full_address: data.full_address || undefined,
+                request_identifier: data.request_identifier || undefined,
+            })
+        );
+    }
+);
 

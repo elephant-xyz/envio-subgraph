@@ -8,8 +8,13 @@ import {
   Utility,
   Layout,
   Lot,
+  Improvement,
+  Inspection,
+  File,
+  Company,
+  Person,
 } from "generated";
-import { dataTypeConfigs, getRelationshipData, getAddressData, getPropertyData, getIpfsFactSheetData, getSalesHistoryData, getTaxData, getStructureData, getUtilityData, getLayoutData, getLotData } from "./ipfs";
+import { dataTypeConfigs, enableImprovements, getRelationshipData, getAddressData, getPropertyData, getIpfsFactSheetData, getSalesHistoryData, getTaxData, getStructureData, getUtilityData, getLayoutData, getLotData, getImprovementData, getInspectionData, getFileData, getCompanyData, getPersonData, getIpfsMetadata } from "./ipfs";
 
 // Function to get all wallet addresses from environment variables
 export function getAllowedSubmitters(): string[] {
@@ -33,9 +38,10 @@ export function getAllowedSubmitters(): string[] {
 }
 
 // Helper to create Structure entity
-export function createStructureEntity(id: string, data: any): Structure {
+export function createStructureEntity(id: string, data: any, propertyId: string): Structure {
   return {
     id,
+    property_id: propertyId,
     roof_date: data.roof_date || undefined,
     architectural_style_type: data.architectural_style_type || undefined,
     attachment_type: data.attachment_type || undefined,
@@ -150,9 +156,10 @@ export function createIpfsEntity(ipfsId: string, ipfsData: any): Ipfs {
 }
 
 // Helper to create Utility entity
-export function createUtilityEntity(id: string, data: any): Utility {
+export function createUtilityEntity(id: string, data: any, propertyId: string): Utility {
   return {
     id,
+    property_id: propertyId,
     cooling_system_type: data.cooling_system_type || undefined,
     electrical_panel_capacity: data.electrical_panel_capacity || undefined,
     electrical_wiring_type: data.electrical_wiring_type || undefined,
@@ -177,9 +184,10 @@ export function createUtilityEntity(id: string, data: any): Utility {
 }
 
 // Helper to create Layout entity
-export function createLayoutEntity(id: string, data: any): Layout {
+export function createLayoutEntity(id: string, data: any, propertyId: string): Layout {
   return {
     id,
+    property_id: propertyId,
     cabinet_style: data.cabinet_style || undefined,
     clutter_level: data.clutter_level || undefined,
     condition_issues: data.condition_issues || undefined,
@@ -236,6 +244,35 @@ export function createSalesHistoryEntity(salesHistoryId: string, salesHistoryDat
   };
 }
 
+// Helper to create Improvement entity
+export function createImprovementEntity(improvementId: string, improvementData: any, propertyId: string): Improvement {
+  return {
+    id: improvementId,
+    improvement_type: improvementData.improvement_type || undefined,
+    improvement_subtype: improvementData.improvement_subtype || undefined,
+    description: improvementData.description || undefined,
+    year_completed: improvementData.year_completed || undefined,
+    cost_amount: improvementData.cost_amount || undefined,
+    request_identifier: improvementData.request_identifier || undefined,
+    property_id: propertyId,
+    // Elephant detailed fields
+    application_received_date: improvementData.application_received_date || undefined,
+    completion_date: improvementData.completion_date || undefined,
+    contractor_type: improvementData.contractor_type || undefined,
+    final_inspection_date: improvementData.final_inspection_date || undefined,
+    improvement_action: improvementData.improvement_action || undefined,
+    improvement_status: improvementData.improvement_status || undefined,
+    is_disaster_recovery: improvementData.is_disaster_recovery || undefined,
+    is_owner_builder: improvementData.is_owner_builder || undefined,
+    permit_close_date: improvementData.permit_close_date || undefined,
+    permit_issue_date: improvementData.permit_issue_date || undefined,
+    permit_number: improvementData.permit_number || undefined,
+    permit_required: improvementData.permit_required || undefined,
+    private_provider_inspections: improvementData.private_provider_inspections || undefined,
+    private_provider_plan_review: improvementData.private_provider_plan_review || undefined,
+  };
+}
+
 // Helper to create Tax entity
 export function createTaxEntity(taxId: string, taxData: any, propertyId: string): Tax {
   return {
@@ -274,6 +311,60 @@ export function createTaxEntity(taxId: string, taxData: any, propertyId: string)
 
 // Removed Deed entity creation
 
+// Helper to create Inspection entity
+export function createInspectionEntity(id: string, data: any, propertyId: string): Inspection {
+  return {
+    id,
+    completed_date: data.completed_date || undefined,
+    completed_time: data.completed_time || undefined,
+    inspection_number: data.inspection_number || undefined,
+    inspection_status: data.inspection_status || undefined,
+    permit_number: data.permit_number || undefined,
+    requested_date: data.requested_date || undefined,
+    scheduled_date: data.scheduled_date || undefined,
+    property_id: propertyId,
+  };
+}
+
+// Helper to create File entity
+export function createFileEntity(id: string, data: any, propertyId: string): File {
+  return {
+    id,
+    document_type: data.document_type || undefined,
+    file_format: data.file_format || undefined,
+    ipfs_url: data.ipfs_url || undefined,
+    name: data.name || undefined,
+    original_url: data.original_url || undefined,
+    request_identifier: data.request_identifier || undefined,
+    property_id: propertyId,
+  };
+}
+
+// Helper to create Company entity
+export function createCompanyEntity(id: string, data: any, propertyId: string): Company {
+  return {
+    id,
+    name: data.name || undefined,
+    request_identifier: data.request_identifier || undefined,
+    property_id: propertyId,
+  };
+}
+
+// Helper to create Person entity
+export function createPersonEntity(id: string, data: any, propertyId: string): Person {
+  return {
+    id,
+    first_name: data.first_name || undefined,
+    last_name: data.last_name || undefined,
+    birth_date: data.birth_date || undefined,
+    prefix_name: data.prefix_name || undefined,
+    suffix_name: data.suffix_name || undefined,
+    us_citizenship_status: data.us_citizenship_status || undefined,
+    veteran_status: data.veteran_status || undefined,
+    property_id: propertyId,
+  };
+}
+
 // Helper to process County data with full parallelism
 export async function processCountyData(context: any, metadata: any, cid: string, propertyEntityId: string) {
   // Initialize entity IDs that will be populated from IPFS data
@@ -283,6 +374,10 @@ export async function processCountyData(context: any, metadata: any, cid: string
   let parcelIdentifier: string | undefined;
   const salesHistoryEntities: SalesHistory[] = [];
   const taxEntities: Tax[] = [];
+  const improvementEntities: Improvement[] = [];
+  let structurePend: any[] | undefined;
+  let utilityPend: any[] | undefined;
+  let layoutPend: any[] | undefined;
 
   // PHASE 1: relationships for property/address only
   const propertyAddressCid = metadata.relationships?.property_has_address?.["/"];
@@ -343,24 +438,26 @@ export async function processCountyData(context: any, metadata: any, cid: string
       if (!addressDataCid) {
         addressDataCid = rel.data.to?.["/"];
       }
-      // Also inspect other relationships from the same metadata
-      const rels = metadata.relationships || {};
-      if (rels.property_has_structure?.["/"]) {
-        structureDataCid = rels.property_has_structure?.["/"];
-      }
-      if (rels.property_has_utility?.["/"]) {
-        utilityDataCid = rels.property_has_utility?.["/"];
-      }
-      if (Array.isArray(rels.property_has_layout)) {
-        for (const ref of rels.property_has_layout) {
-          const cidRef = ref?.["/"];
-          if (cidRef) layoutDataCids.push(cidRef);
+      // If improvement indexing is enabled, traverse all other property classes (ignore property/parcel)
+      if (enableImprovements) {
+        const rels = metadata.relationships || {};
+        if (rels.property_has_structure?.["/"]) {
+          structureDataCid = rels.property_has_structure?.["/"];
         }
-      }
-      if (Array.isArray(rels.property_has_lot)) {
-        for (const ref of rels.property_has_lot) {
-          const cidRef = ref?.["/"];
-          if (cidRef) lotDataCids.push(cidRef);
+        if (rels.property_has_utility?.["/"]) {
+          utilityDataCid = rels.property_has_utility?.["/"];
+        }
+        if (Array.isArray(rels.property_has_layout)) {
+          for (const ref of rels.property_has_layout) {
+            const cidRef = ref?.["/"];
+            if (cidRef) layoutDataCids.push(cidRef);
+          }
+        }
+        if (Array.isArray(rels.property_has_lot)) {
+          for (const ref of rels.property_has_lot) {
+            const cidRef = ref?.["/"];
+            if (cidRef) lotDataCids.push(cidRef);
+          }
         }
       }
     } else if (rel.type === 'address_rel') {
@@ -509,23 +606,23 @@ export async function processCountyData(context: any, metadata: any, cid: string
       const ipfsEntity = createIpfsEntity(result.cid, result.data);
       context.Ipfs.set(ipfsEntity);
     } else if (result.type === 'structure') {
-      const entity = createStructureEntity(result.cid, result.data);
-      context.Structure.set(entity);
+      // Defer until parcelIdentifier is known
+      (structurePend ||= []).push(result);
     } else if (result.type === 'utility') {
-      const entity = createUtilityEntity(result.cid, result.data);
-      context.Utility.set(entity);
+      (utilityPend ||= []).push(result);
     } else if (result.type === 'layout') {
-      const entity = createLayoutEntity(result.cid, result.data);
-      context.Layout.set(entity);
+      (layoutPend ||= []).push(result);
     } else if (result.type === 'lot') {
       const entity = createLotEntity(result.cid, result.data);
       context.Lot.set(entity);
     }
   }
 
-  // PHASE 2: sales/tax relationships and data using final propertyId (parcel_identifier only)
+  // Removed fallback to address.request_identifier to enforce parcel_id/parcel_identifier only
+
+  // PHASE 2: sales/tax/improvement relationships and data using final propertyId (parcel_identifier only)
   if (!parcelIdentifier) {
-    context.log.info("Skipping Phase 2 (sales/tax) - no parcel_identifier resolved", { cid });
+    context.log.info("Skipping Phase 2 (sales/tax/improvement) - no parcel_identifier resolved", { cid });
     return {
       addressId,
       propertyDataId,
@@ -533,11 +630,13 @@ export async function processCountyData(context: any, metadata: any, cid: string
       taxEntities,
       parcelIdentifier,
       salesHistoryEntities,
+      improvementEntities,
     };
   }
 
   const salesHistoryCids = metadata.relationships?.property_has_sales_history || [];
   const taxCids = metadata.relationships?.property_has_tax || [];
+  const improvementCids = enableImprovements ? (metadata.relationships?.property_has_improvement || []) : [];
 
   const phase2RelPromises: any[] = [];
   if (dataTypeConfigs.sales_history && getSalesHistoryData) {
@@ -584,6 +683,73 @@ export async function processCountyData(context: any, metadata: any, cid: string
     }
   }
 
+  // Improvements relationships (guarded by flag)
+  if (enableImprovements) {
+    for (const impRef of improvementCids) {
+      const impRelCid = impRef?.["/"];
+      if (impRelCid) {
+        phase2RelPromises.push(
+          (async () => {
+            const start = Date.now();
+            try {
+              const data = await context.effect(getRelationshipData, impRelCid);
+              const durationMs = Date.now() - start;
+              const gateway = dataTypeConfigs.property?.gateway;
+              context.log.info("IPFS phase[improvement] improvement relationship fetched", { cid: impRelCid, gateway, durationMs });
+              return { type: 'improvement_rel', data, cid: impRelCid, durationMs };
+            } catch (error: any) {
+              return { type: 'improvement_rel', error, cid: impRelCid };
+            }
+          })()
+        );
+      }
+    }
+  }
+
+  // Inspections relationships (treat similar to improvements)
+  const inspectionCids = metadata.relationships?.property_has_inspection || [];
+  for (const insRef of inspectionCids) {
+    const insRelCid = insRef?.["/"];
+    if (insRelCid) {
+      phase2RelPromises.push(
+        (async () => {
+          const start = Date.now();
+          try {
+            const data = await context.effect(getRelationshipData, insRelCid);
+            const durationMs = Date.now() - start;
+            const gateway = dataTypeConfigs.property?.gateway;
+            context.log.info("IPFS phase[inspection] inspection relationship fetched", { cid: insRelCid, gateway, durationMs });
+            return { type: 'inspection_rel', data, cid: insRelCid, durationMs };
+          } catch (error: any) {
+            return { type: 'inspection_rel', error, cid: insRelCid };
+          }
+        })()
+      );
+    }
+  }
+
+  // Files relationships
+  const fileCids = metadata.relationships?.property_has_file || [];
+  for (const fileRef of fileCids) {
+    const fileRelCid = fileRef?.["/"];
+    if (fileRelCid) {
+      phase2RelPromises.push(
+        (async () => {
+          const start = Date.now();
+          try {
+            const data = await context.effect(getRelationshipData, fileRelCid);
+            const durationMs = Date.now() - start;
+            const gateway = dataTypeConfigs.property?.gateway;
+            context.log.info("IPFS phase[file] file relationship fetched", { cid: fileRelCid, gateway, durationMs });
+            return { type: 'file_rel', data, cid: fileRelCid, durationMs };
+          } catch (error: any) {
+            return { type: 'file_rel', error, cid: fileRelCid };
+          }
+        })()
+      );
+    }
+  }
+
   const phase2RelResults = await Promise.all(phase2RelPromises);
 
   const phase2DataPromises: any[] = [];
@@ -621,6 +787,54 @@ export async function processCountyData(context: any, metadata: any, cid: string
           }
         })());
       }
+    } else if (rel.type === 'improvement_rel' && enableImprovements) {
+      const targetCid = rel.data.to?.["/"] || rel.data.from?.["/"];
+      if (targetCid) {
+        phase2DataPromises.push((async () => {
+          const start = Date.now();
+          try {
+            const data = await context.effect(getImprovementData, targetCid);
+            const durationMs = Date.now() - start;
+            const gateway = dataTypeConfigs.property?.gateway;
+            context.log.info("IPFS phase[improvement] improvement data fetched", { cid: targetCid, gateway, durationMs });
+            return { type: 'improvement', data, cid: targetCid, durationMs };
+          } catch (error: any) {
+            return { type: 'improvement', error, cid: targetCid };
+          }
+        })());
+      }
+    } else if (rel.type === 'inspection_rel') {
+      const targetCid = rel.data.to?.["/"] || rel.data.from?.["/"];
+      if (targetCid) {
+        phase2DataPromises.push((async () => {
+          const start = Date.now();
+          try {
+            const data = await context.effect(getInspectionData, targetCid);
+            const durationMs = Date.now() - start;
+            const gateway = dataTypeConfigs.property?.gateway;
+            context.log.info("IPFS phase[inspection] inspection data fetched", { cid: targetCid, gateway, durationMs });
+            return { type: 'inspection', data, cid: targetCid, durationMs };
+          } catch (error: any) {
+            return { type: 'inspection', error, cid: targetCid };
+          }
+        })());
+      }
+    } else if (rel.type === 'file_rel') {
+      const targetCid = rel.data.to?.["/"] || rel.data.from?.["/"];
+      if (targetCid) {
+        phase2DataPromises.push((async () => {
+          const start = Date.now();
+          try {
+            const data = await context.effect(getFileData, targetCid);
+            const durationMs = Date.now() - start;
+            const gateway = dataTypeConfigs.property?.gateway;
+            context.log.info("IPFS phase[file] file data fetched", { cid: targetCid, gateway, durationMs });
+            return { type: 'file', data, cid: targetCid, durationMs };
+          } catch (error: any) {
+            return { type: 'file', error, cid: targetCid };
+          }
+        })());
+      }
     }
   }
 
@@ -638,6 +852,84 @@ export async function processCountyData(context: any, metadata: any, cid: string
       const taxEntity = createTaxEntity(result.cid, result.data, parcelIdentifier);
       context.Tax.set(taxEntity);
       taxEntities.push(taxEntity);
+    } else if (result.type === 'improvement' && enableImprovements) {
+      const improvementEntity = createImprovementEntity(result.cid, result.data, parcelIdentifier);
+      context.Improvement.set(improvementEntity);
+      improvementEntities.push(improvementEntity);
+
+      // Traverse contractors and contractor personnel from improvement metadata
+      try {
+        const impMeta = await context.effect(getIpfsMetadata, result.cid);
+        const rels: any = (impMeta as any)?.relationships || {};
+
+        // Contractors
+        const contractorRels = rels.property_improvement_has_contractor || [];
+        for (const cref of contractorRels) {
+          const cRelCid = cref?.["/"];
+          if (!cRelCid) continue;
+          try {
+            const cr = await context.effect(getRelationshipData, cRelCid);
+            const endpoints = [cr.to?.["/"], cr.from?.["/"]].filter(Boolean) as string[];
+            for (const ep of endpoints) {
+              try {
+                const c = await context.effect(getCompanyData, ep);
+                if (c && (c.name || c.request_identifier)) {
+                  const companyEntity = createCompanyEntity(ep, c, parcelIdentifier);
+                  context.Company.set(companyEntity);
+                }
+              } catch {}
+            }
+          } catch {}
+        }
+
+        // Contractor personnel
+        const personRels = rels.contractor_has_person || [];
+        for (const pref of personRels) {
+          const pRelCid = pref?.["/"];
+          if (!pRelCid) continue;
+          try {
+            const pr = await context.effect(getRelationshipData, pRelCid);
+            const endpoints = [pr.to?.["/"], pr.from?.["/"]].filter(Boolean) as string[];
+            for (const ep of endpoints) {
+              try {
+                const p = await context.effect(getPersonData, ep);
+                if (p && (p.first_name || p.last_name || p.request_identifier)) {
+                  const personEntity = createPersonEntity(ep, p, parcelIdentifier);
+                  context.Person.set(personEntity);
+                }
+              } catch {}
+            }
+          } catch {}
+        }
+      } catch {}
+    } else if (result.type === 'inspection') {
+      const inspectionEntity = createInspectionEntity(result.cid, result.data, parcelIdentifier);
+      context.Inspection.set(inspectionEntity);
+    } else if (result.type === 'file') {
+      const fileEntity = createFileEntity(result.cid, result.data, parcelIdentifier);
+      context.File.set(fileEntity);
+    }
+  }
+
+  // After parcelIdentifier known, flush pending structure/utility/layout
+  if (parcelIdentifier) {
+    if (structurePend) {
+      for (const r of structurePend) {
+        const entity = createStructureEntity(r.cid, r.data, parcelIdentifier);
+        context.Structure.set(entity);
+      }
+    }
+    if (utilityPend) {
+      for (const r of utilityPend) {
+        const entity = createUtilityEntity(r.cid, r.data, parcelIdentifier);
+        context.Utility.set(entity);
+      }
+    }
+    if (layoutPend) {
+      for (const r of layoutPend) {
+        const entity = createLayoutEntity(r.cid, r.data, parcelIdentifier);
+        context.Layout.set(entity);
+      }
     }
   }
 
@@ -648,6 +940,7 @@ export async function processCountyData(context: any, metadata: any, cid: string
     taxEntities,
     parcelIdentifier,
     salesHistoryEntities,
+    improvementEntities,
   }
   
     }
