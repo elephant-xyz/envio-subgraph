@@ -8,13 +8,19 @@ import {
     ipfsFactSheetSchema,
     salesHistorySchema,
     taxSchema,
+    parcelSchema,
+    geometrySchema,
+    layoutSchema,
     type IpfsMetadata,
     type RelationshipData,
     type AddressData,
     type PropertyData,
     type IpfsFactSheetData,
     type SalesHistoryData,
-    type TaxData
+    type TaxData,
+    type ParcelData,
+    type GeometryData,
+    type LayoutData
 } from "./schemas";
 
 // Environment variable configuration for each data type
@@ -526,6 +532,129 @@ export const getIpfsFactSheetData = experimental_createEffect(
             (data: any) => ({
                 ipfs_url: data.ipfs_url || undefined,
                 full_generation_command: data.full_generation_command || undefined,
+            })
+        );
+    }
+);
+
+// Parcel data - uses property gateway (REQUIRED)
+export const getParcelData = experimental_createEffect(
+    {
+        name: "getParcelData",
+        input: S.string,
+        output: parcelSchema,
+        cache: true,
+    },
+    async ({ input: cid, context }) => {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "parcel data",
+            propertyConfig,
+            (data: any) => data && typeof data === 'object' && data.parcel_identifier,
+            (data: any) => ({
+                parcel_identifier: data.parcel_identifier,
+            })
+        );
+    }
+);
+
+// Geometry data - uses property gateway (REQUIRED)
+export const getGeometryData = experimental_createEffect(
+    {
+        name: "getGeometryData",
+        input: S.string,
+        output: geometrySchema,
+        cache: true,
+    },
+    async ({ input: cid, context }) => {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "geometry data",
+            propertyConfig,
+            (data: any) => data && typeof data === 'object',
+            (data: any) => {
+                // Validate and transform polygon if present
+                let polygon = undefined;
+                if (data.polygon && Array.isArray(data.polygon)) {
+                    // Validate that each point has latitude and longitude
+                    const validPolygon = data.polygon.every(
+                        (point: any) => typeof point.latitude === 'number' && typeof point.longitude === 'number'
+                    );
+                    if (validPolygon) {
+                        polygon = data.polygon;
+                    }
+                }
+
+                return {
+                    latitude: data.latitude || undefined,
+                    longitude: data.longitude || undefined,
+                    polygon: polygon,
+                };
+            }
+        );
+    }
+);
+
+// Layout data - uses property gateway (REQUIRED)
+export const getLayoutData = experimental_createEffect(
+    {
+        name: "getLayoutData",
+        input: S.string,
+        output: layoutSchema,
+        cache: true,
+    },
+    async ({ input: cid, context }) => {
+        return fetchDataWithInfiniteRetry(
+            context,
+            cid,
+            "layout data",
+            propertyConfig,
+            (data: any) => data && typeof data === 'object' && typeof data.is_finished === 'boolean' && typeof data.is_exterior === 'boolean',
+            (data: any) => ({
+                cabinet_style: data.cabinet_style || undefined,
+                clutter_level: data.clutter_level || undefined,
+                condition_issues: data.condition_issues || undefined,
+                countertop_material: data.countertop_material || undefined,
+                decor_elements: data.decor_elements || undefined,
+                design_style: data.design_style || undefined,
+                fixture_finish_quality: data.fixture_finish_quality || undefined,
+                floor_level: data.floor_level || undefined,
+                flooring_material_type: data.flooring_material_type || undefined,
+                flooring_wear: data.flooring_wear || undefined,
+                furnished: data.furnished || undefined,
+                has_windows: data.has_windows || undefined,
+                is_exterior: data.is_exterior,
+                is_finished: data.is_finished,
+                lighting_features: data.lighting_features || undefined,
+                natural_light_quality: data.natural_light_quality || undefined,
+                paint_condition: data.paint_condition || undefined,
+                pool_condition: data.pool_condition || undefined,
+                pool_equipment: data.pool_equipment || undefined,
+                pool_surface_type: data.pool_surface_type || undefined,
+                pool_type: data.pool_type || undefined,
+                pool_water_quality: data.pool_water_quality || undefined,
+                request_identifier: data.request_identifier || undefined,
+                safety_features: data.safety_features || undefined,
+                size_square_feet: data.size_square_feet || undefined,
+                spa_type: data.spa_type || undefined,
+                space_index: data.space_index,
+                space_type: data.space_type || undefined,
+                space_type_index: data.space_type_index || undefined,
+                view_type: data.view_type || undefined,
+                visible_damage: data.visible_damage || undefined,
+                window_design_type: data.window_design_type || undefined,
+                window_material_type: data.window_material_type || undefined,
+                window_treatment_type: data.window_treatment_type || undefined,
+                building_number: data.building_number || undefined,
+                built_year: data.built_year || undefined,
+                story_type: data.story_type || undefined,
+                livable_area_sq_ft: data.livable_area_sq_ft || undefined,
+                heated_area_sq_ft: data.heated_area_sq_ft || undefined,
+                total_area_sq_ft: data.total_area_sq_ft || undefined,
+                area_under_air_sq_ft: data.area_under_air_sq_ft || undefined,
+                adjustable_area_sq_ft: data.adjustable_area_sq_ft || undefined,
             })
         );
     }

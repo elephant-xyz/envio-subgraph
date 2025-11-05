@@ -41,6 +41,7 @@ type Address {
   street_suffix: String
   unit_identifier: String
   township: String
+  geometry: [Geometry!]! @derivedFrom(field: "address_id")
 }
 
 type Property {
@@ -94,7 +95,67 @@ type Tax {
   property_id: String!
 }
 
+type Parcel {
+  id: ID!
+  parcel_identifier: String!
+  geometry: [Geometry!]! @derivedFrom(field: "parcel_id")
+}
 
+type Layout {
+  id: ID!
+  space_type: String
+  space_type_index: String
+  space_index: Int
+  flooring_material_type: String
+  size_square_feet: Float
+  has_windows: Boolean
+  window_design_type: String
+  window_material_type: String
+  window_treatment_type: String
+  is_finished: Boolean!
+  is_exterior: Boolean!
+  furnished: String
+  paint_condition: String
+  flooring_wear: String
+  clutter_level: String
+  visible_damage: String
+  countertop_material: String
+  cabinet_style: String
+  fixture_finish_quality: String
+  design_style: String
+  natural_light_quality: String
+  decor_elements: String
+  pool_type: String
+  pool_equipment: String
+  spa_type: String
+  safety_features: String
+  view_type: String
+  lighting_features: String
+  condition_issues: String
+  pool_condition: String
+  pool_surface_type: String
+  pool_water_quality: String
+  floor_level: String
+  building_number: Int
+  built_year: Int
+  story_type: String
+  livable_area_sq_ft: Int
+  heated_area_sq_ft: Int
+  total_area_sq_ft: Int
+  area_under_air_sq_ft: Int
+  adjustable_area_sq_ft: Int
+  geometry: [Geometry!]! @derivedFrom(field: "layout_id")
+}
+
+type Geometry {
+  id: ID!
+  latitude: Float
+  longitude: Float
+  polygon: String
+  parcel_id: String
+  address_id: String
+  layout_id: String
+}
 
 
 

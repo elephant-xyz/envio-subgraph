@@ -40,6 +40,15 @@ export const ipfsMetadataSchema = S.schema({
     })),
     address_has_fact_sheet: S.optional(S.array(S.schema({
       "/": S.string
+    }))),
+    parcel_has_geometry: S.optional(S.array(S.schema({
+      "/": S.string
+    }))),
+    address_has_geometry: S.optional(S.array(S.schema({
+      "/": S.string
+    }))),
+    layout_has_geometry: S.optional(S.array(S.schema({
+      "/": S.string
     })))
   }))
 });
@@ -241,11 +250,20 @@ export const layoutSchema = S.schema({
   spa_type: S.optional(S.string),
   space_index: S.number,
   space_type: S.optional(S.string),
+  space_type_index: S.optional(S.string),
   view_type: S.optional(S.string),
   visible_damage: S.optional(S.string),
   window_design_type: S.optional(S.string),
   window_material_type: S.optional(S.string),
   window_treatment_type: S.optional(S.string),
+  building_number: S.optional(S.number),
+  built_year: S.optional(S.number),
+  story_type: S.optional(S.string),
+  livable_area_sq_ft: S.optional(S.number),
+  heated_area_sq_ft: S.optional(S.number),
+  total_area_sq_ft: S.optional(S.number),
+  area_under_air_sq_ft: S.optional(S.number),
+  adjustable_area_sq_ft: S.optional(S.number),
 });
 
 // File Data Schema
@@ -263,6 +281,24 @@ export const deedSchema = S.schema({
   deed_type: S.string,
 });
 
+// Parcel Data Schema
+export const parcelSchema = S.schema({
+  parcel_identifier: S.string,
+});
+
+// Polygon Point Schema
+export const polygonPointSchema = S.schema({
+  latitude: S.number,
+  longitude: S.number,
+});
+
+// Geometry Data Schema
+export const geometrySchema = S.schema({
+  latitude: S.optional(S.number),
+  longitude: S.optional(S.number),
+  polygon: S.optional(S.array(polygonPointSchema)),
+});
+
 // Inferred Types
 export type IpfsMetadata = S.Infer<typeof ipfsMetadataSchema>;
 export type RelationshipData = S.Infer<typeof relationshipSchema>;
@@ -278,3 +314,5 @@ export type UtilityData = S.Infer<typeof utilitySchema>;
 export type LayoutData = S.Infer<typeof layoutSchema>;
 export type FileData = S.Infer<typeof fileSchema>;
 export type DeedData = S.Infer<typeof deedSchema>;
+export type ParcelData = S.Infer<typeof parcelSchema>;
+export type GeometryData = S.Infer<typeof geometrySchema>;

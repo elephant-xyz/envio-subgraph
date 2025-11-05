@@ -4,8 +4,11 @@ import {
   Ipfs,
   SalesHistory,
   Tax,
+  Parcel,
+  Geometry,
+  Layout,
 } from "generated";
-import { dataTypeConfigs, getRelationshipData, getAddressData, getPropertyData, getIpfsFactSheetData, getSalesHistoryData, getTaxData } from "./ipfs";
+import { dataTypeConfigs, getRelationshipData, getAddressData, getPropertyData, getIpfsFactSheetData, getSalesHistoryData, getTaxData, getParcelData, getGeometryData, getLayoutData } from "./ipfs";
 
 // Function to get all wallet addresses from environment variables
 export function getAllowedSubmitters(): string[] {
@@ -122,6 +125,91 @@ export function createTaxEntity(taxId: string, taxData: any, propertyId: string)
     tax_year: taxData.tax_year || undefined,
     yearly_tax_amount: taxData.yearly_tax_amount || undefined,
     property_id: propertyId
+  };
+}
+
+// Helper to create Parcel entity
+export function createParcelEntity(parcelId: string, parcelData: any): Parcel {
+  return {
+    id: parcelId,
+    parcel_identifier: parcelData.parcel_identifier
+  };
+}
+
+// Helper to create Geometry entity
+export function createGeometryEntity(
+  geometryId: string,
+  geometryData: any,
+  parcelId?: string,
+  addressId?: string,
+  layoutId?: string
+): Geometry {
+  // Serialize polygon array to JSON string for GraphQL storage
+  let polygonJson: string | undefined = undefined;
+  if (geometryData.polygon && Array.isArray(geometryData.polygon)) {
+    try {
+      polygonJson = JSON.stringify(geometryData.polygon);
+    } catch (error) {
+      console.error('Failed to serialize polygon data:', error);
+    }
+  }
+
+  return {
+    id: geometryId,
+    latitude: geometryData.latitude || undefined,
+    longitude: geometryData.longitude || undefined,
+    polygon: polygonJson,
+    parcel_id: parcelId || undefined,
+    address_id: addressId || undefined,
+    layout_id: layoutId || undefined
+  };
+}
+
+// Helper to create Layout entity
+export function createLayoutEntity(layoutId: string, layoutData: any): Layout {
+  return {
+    id: layoutId,
+    space_type: layoutData.space_type || undefined,
+    space_type_index: layoutData.space_type_index || undefined,
+    space_index: layoutData.space_index,
+    flooring_material_type: layoutData.flooring_material_type || undefined,
+    size_square_feet: layoutData.size_square_feet || undefined,
+    has_windows: layoutData.has_windows || undefined,
+    window_design_type: layoutData.window_design_type || undefined,
+    window_material_type: layoutData.window_material_type || undefined,
+    window_treatment_type: layoutData.window_treatment_type || undefined,
+    is_finished: layoutData.is_finished,
+    is_exterior: layoutData.is_exterior,
+    furnished: layoutData.furnished || undefined,
+    paint_condition: layoutData.paint_condition || undefined,
+    flooring_wear: layoutData.flooring_wear || undefined,
+    clutter_level: layoutData.clutter_level || undefined,
+    visible_damage: layoutData.visible_damage || undefined,
+    countertop_material: layoutData.countertop_material || undefined,
+    cabinet_style: layoutData.cabinet_style || undefined,
+    fixture_finish_quality: layoutData.fixture_finish_quality || undefined,
+    design_style: layoutData.design_style || undefined,
+    natural_light_quality: layoutData.natural_light_quality || undefined,
+    decor_elements: layoutData.decor_elements || undefined,
+    pool_type: layoutData.pool_type || undefined,
+    pool_equipment: layoutData.pool_equipment || undefined,
+    spa_type: layoutData.spa_type || undefined,
+    safety_features: layoutData.safety_features || undefined,
+    view_type: layoutData.view_type || undefined,
+    lighting_features: layoutData.lighting_features || undefined,
+    condition_issues: layoutData.condition_issues || undefined,
+    pool_condition: layoutData.pool_condition || undefined,
+    pool_surface_type: layoutData.pool_surface_type || undefined,
+    pool_water_quality: layoutData.pool_water_quality || undefined,
+    floor_level: layoutData.floor_level || undefined,
+    building_number: layoutData.building_number || undefined,
+    built_year: layoutData.built_year || undefined,
+    story_type: layoutData.story_type || undefined,
+    livable_area_sq_ft: layoutData.livable_area_sq_ft || undefined,
+    heated_area_sq_ft: layoutData.heated_area_sq_ft || undefined,
+    total_area_sq_ft: layoutData.total_area_sq_ft || undefined,
+    area_under_air_sq_ft: layoutData.area_under_air_sq_ft || undefined,
+    adjustable_area_sq_ft: layoutData.adjustable_area_sq_ft || undefined,
   };
 }
 
@@ -409,6 +497,233 @@ export async function processCountyData(context: any, metadata: any, cid: string
     }
   }
 
+  // PHASE 3: parcel_has_geometry relationships - process parcel and geometry entities
+  const parcelGeometryCids = metadata.relationships?.parcel_has_geometry || [];
+  const phase3RelPromises: any[] = [];
+
+  for (const geometryRef of parcelGeometryCids) {
+    const geometryRelCid = geometryRef?.["/"];
+    if (geometryRelCid) {
+      phase3RelPromises.push(
+        (async () => {
+          const start = Date.now();
+          try {
+            const data = await context.effect(getRelationshipData, geometryRelCid);
+            const durationMs = Date.now() - start;
+            const gateway = dataTypeConfigs.property?.gateway;
+            context.log.info("IPFS phase[parcel_geometry] geometry relationship fetched", { cid: geometryRelCid, gateway, durationMs });
+            return { type: 'parcel_geometry_rel', data, cid: geometryRelCid, durationMs };
+          } catch (error: any) {
+            return { type: 'parcel_geometry_rel', error, cid: geometryRelCid };
+          }
+        })()
+      );
+    }
+  }
+
+  const phase3RelResults = await Promise.all(phase3RelPromises);
+
+  const phase3DataPromises: any[] = [];
+  for (const rel of phase3RelResults) {
+    if (rel.error) continue;
+    if (rel.type === 'parcel_geometry_rel') {
+      const parcelDataCid = rel.data.from?.["/"];
+      const geometryDataCid = rel.data.to?.["/"];
+
+      // Fetch parcel data
+      if (parcelDataCid) {
+        phase3DataPromises.push((async () => {
+          const start = Date.now();
+          try {
+            const data = await context.effect(getParcelData, parcelDataCid);
+            const durationMs = Date.now() - start;
+            const gateway = dataTypeConfigs.property?.gateway;
+            context.log.info("IPFS phase[parcel_geometry] parcel data fetched", { cid: parcelDataCid, gateway, durationMs });
+            return { type: 'parcel', data, cid: parcelDataCid, durationMs };
+          } catch (error: any) {
+            return { type: 'parcel', error, cid: parcelDataCid };
+          }
+        })());
+      }
+
+      // Fetch geometry data
+      if (geometryDataCid) {
+        phase3DataPromises.push((async () => {
+          const start = Date.now();
+          try {
+            const data = await context.effect(getGeometryData, geometryDataCid);
+            const durationMs = Date.now() - start;
+            const gateway = dataTypeConfigs.property?.gateway;
+            context.log.info("IPFS phase[parcel_geometry] geometry data fetched", { cid: geometryDataCid, gateway, durationMs });
+            return { type: 'geometry', data, cid: geometryDataCid, durationMs, parcelCid: parcelDataCid };
+          } catch (error: any) {
+            return { type: 'geometry', error, cid: geometryDataCid };
+          }
+        })());
+      }
+    }
+  }
+
+  const phase3DataResults = await Promise.all(phase3DataPromises);
+  for (const result of phase3DataResults) {
+    if (result.error) {
+      context.log.warn(`Failed to fetch ${result.type} data`, { cid, error: result.error.message });
+      continue;
+    }
+    if (result.type === 'parcel') {
+      const parcelEntity = createParcelEntity(result.cid, result.data);
+      context.Parcel.set(parcelEntity);
+    } else if (result.type === 'geometry') {
+      const geometryEntity = createGeometryEntity(result.cid, result.data, result.parcelCid);
+      context.Geometry.set(geometryEntity);
+    }
+  }
+
+  // PHASE 4: address_has_geometry relationships - process geometry entities linked to address
+  const addressGeometryCids = metadata.relationships?.address_has_geometry || [];
+  const phase4RelPromises: any[] = [];
+
+  for (const geometryRef of addressGeometryCids) {
+    const geometryRelCid = geometryRef?.["/"];
+    if (geometryRelCid) {
+      phase4RelPromises.push(
+        (async () => {
+          const start = Date.now();
+          try {
+            const data = await context.effect(getRelationshipData, geometryRelCid);
+            const durationMs = Date.now() - start;
+            const gateway = dataTypeConfigs.property?.gateway;
+            context.log.info("IPFS phase[address_geometry] geometry relationship fetched", { cid: geometryRelCid, gateway, durationMs });
+            return { type: 'address_geometry_rel', data, cid: geometryRelCid, durationMs };
+          } catch (error: any) {
+            return { type: 'address_geometry_rel', error, cid: geometryRelCid };
+          }
+        })()
+      );
+    }
+  }
+
+  const phase4RelResults = await Promise.all(phase4RelPromises);
+
+  const phase4DataPromises: any[] = [];
+  for (const rel of phase4RelResults) {
+    if (rel.error) continue;
+    if (rel.type === 'address_geometry_rel') {
+      const addressDataCidFromRel = rel.data.from?.["/"];
+      const geometryDataCid = rel.data.to?.["/"];
+
+      // Fetch geometry data linked to address
+      if (geometryDataCid) {
+        phase4DataPromises.push((async () => {
+          const start = Date.now();
+          try {
+            const data = await context.effect(getGeometryData, geometryDataCid);
+            const durationMs = Date.now() - start;
+            const gateway = dataTypeConfigs.property?.gateway;
+            context.log.info("IPFS phase[address_geometry] geometry data fetched", { cid: geometryDataCid, gateway, durationMs });
+            return { type: 'address_geometry', data, cid: geometryDataCid, durationMs, addressCid: addressDataCidFromRel };
+          } catch (error: any) {
+            return { type: 'address_geometry', error, cid: geometryDataCid };
+          }
+        })());
+      }
+    }
+  }
+
+  const phase4DataResults = await Promise.all(phase4DataPromises);
+  for (const result of phase4DataResults) {
+    if (result.error) {
+      context.log.warn(`Failed to fetch ${result.type} data`, { cid, error: result.error.message });
+      continue;
+    }
+    if (result.type === 'address_geometry') {
+      const geometryEntity = createGeometryEntity(result.cid, result.data, undefined, result.addressCid);
+      context.Geometry.set(geometryEntity);
+    }
+  }
+
+  // PHASE 5: layout_has_geometry relationships - process layout and geometry entities
+  const layoutGeometryCids = metadata.relationships?.layout_has_geometry || [];
+  const phase5RelPromises: any[] = [];
+
+  for (const geometryRef of layoutGeometryCids) {
+    const geometryRelCid = geometryRef?.["/"];
+    if (geometryRelCid) {
+      phase5RelPromises.push(
+        (async () => {
+          const start = Date.now();
+          try {
+            const data = await context.effect(getRelationshipData, geometryRelCid);
+            const durationMs = Date.now() - start;
+            const gateway = dataTypeConfigs.property?.gateway;
+            context.log.info("IPFS phase[layout_geometry] geometry relationship fetched", { cid: geometryRelCid, gateway, durationMs });
+            return { type: 'layout_geometry_rel', data, cid: geometryRelCid, durationMs };
+          } catch (error: any) {
+            return { type: 'layout_geometry_rel', error, cid: geometryRelCid };
+          }
+        })()
+      );
+    }
+  }
+
+  const phase5RelResults = await Promise.all(phase5RelPromises);
+
+  const phase5DataPromises: any[] = [];
+  for (const rel of phase5RelResults) {
+    if (rel.error) continue;
+    if (rel.type === 'layout_geometry_rel') {
+      const layoutDataCid = rel.data.from?.["/"];
+      const geometryDataCid = rel.data.to?.["/"];
+
+      // Fetch layout data
+      if (layoutDataCid) {
+        phase5DataPromises.push((async () => {
+          const start = Date.now();
+          try {
+            const data = await context.effect(getLayoutData, layoutDataCid);
+            const durationMs = Date.now() - start;
+            const gateway = dataTypeConfigs.property?.gateway;
+            context.log.info("IPFS phase[layout_geometry] layout data fetched", { cid: layoutDataCid, gateway, durationMs });
+            return { type: 'layout', data, cid: layoutDataCid, durationMs };
+          } catch (error: any) {
+            return { type: 'layout', error, cid: layoutDataCid };
+          }
+        })());
+      }
+
+      // Fetch geometry data
+      if (geometryDataCid) {
+        phase5DataPromises.push((async () => {
+          const start = Date.now();
+          try {
+            const data = await context.effect(getGeometryData, geometryDataCid);
+            const durationMs = Date.now() - start;
+            const gateway = dataTypeConfigs.property?.gateway;
+            context.log.info("IPFS phase[layout_geometry] geometry data fetched", { cid: geometryDataCid, gateway, durationMs });
+            return { type: 'layout_geometry', data, cid: geometryDataCid, durationMs, layoutCid: layoutDataCid };
+          } catch (error: any) {
+            return { type: 'layout_geometry', error, cid: geometryDataCid };
+          }
+        })());
+      }
+    }
+  }
+
+  const phase5DataResults = await Promise.all(phase5DataPromises);
+  for (const result of phase5DataResults) {
+    if (result.error) {
+      context.log.warn(`Failed to fetch ${result.type} data`, { cid, error: result.error.message });
+      continue;
+    }
+    if (result.type === 'layout') {
+      const layoutEntity = createLayoutEntity(result.cid, result.data);
+      context.Layout.set(layoutEntity);
+    } else if (result.type === 'layout_geometry') {
+      const geometryEntity = createGeometryEntity(result.cid, result.data, undefined, undefined, result.layoutCid);
+      context.Geometry.set(geometryEntity);
+    }
+  }
+
   return {
     addressId,
     propertyDataId,
@@ -417,5 +732,5 @@ export async function processCountyData(context: any, metadata: any, cid: string
     parcelIdentifier,
     salesHistoryEntities,
   }
-  
+
     }
