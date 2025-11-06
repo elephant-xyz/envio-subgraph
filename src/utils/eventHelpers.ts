@@ -138,14 +138,27 @@ export function createParcelEntity(parcelId: string, parcelData: any, dataSubmis
 }
 
 // Helper to create Geometry entity
+// Uses composite ID to prevent overwrites when same geometry is shared between parcel/address/layout
 export function createGeometryEntity(
-  geometryId: string,
+  geometryCid: string,
   geometryData: any,
   dataSubmissionId: string,
   parcelId?: string,
   addressId?: string,
   layoutId?: string
 ): Geometry {
+  // Build composite ID based on parent type to allow same geometry for multiple parents
+  let compositeId: string;
+  if (parcelId) {
+    compositeId = `${geometryCid}-parcel-${parcelId}`;
+  } else if (addressId) {
+    compositeId = `${geometryCid}-address-${addressId}`;
+  } else if (layoutId) {
+    compositeId = `${geometryCid}-layout-${layoutId}`;
+  } else {
+    compositeId = geometryCid; // Fallback to just CID if no parent
+  }
+
   // Serialize polygon array to JSON string for GraphQL storage
   let polygonJson: string | undefined = undefined;
   if (geometryData.polygon && Array.isArray(geometryData.polygon)) {
@@ -157,7 +170,7 @@ export function createGeometryEntity(
   }
 
   return {
-    id: geometryId,
+    id: compositeId,
     latitude: geometryData.latitude || undefined,
     longitude: geometryData.longitude || undefined,
     polygon: polygonJson,
@@ -383,6 +396,9 @@ export async function processCountyData(context: any, metadata: any, cid: string
     }
   }
 
+  // Use parcelIdentifier as data_submission_id for all entities if available
+  const effectiveDataSubmissionId = parcelIdentifier || propertyEntityId;
+
   // PHASE 2: sales/tax relationships and data using final propertyId (parcel_identifier only)
   if (!parcelIdentifier) {
     context.log.info("Skipping Phase 2 (sales/tax) - no parcel_identifier resolved", { cid });
@@ -502,9 +518,11 @@ export async function processCountyData(context: any, metadata: any, cid: string
   }
 
   // PHASE 3: parcel_has_geometry relationships - process parcel and geometry entities
-  const parcelGeometryCids = Array.isArray(metadata.relationships?.parcel_has_geometry)
-    ? metadata.relationships.parcel_has_geometry
-    : [];
+  const parcelGeometryRaw = metadata.relationships?.parcel_has_geometry;
+  const parcelGeometryCids = Array.isArray(parcelGeometryRaw)
+    ? parcelGeometryRaw
+    : (parcelGeometryRaw && typeof parcelGeometryRaw === 'object' ? [parcelGeometryRaw] : []);
+
   const phase3RelPromises: any[] = [];
 
   for (const geometryRef of parcelGeometryCids) {
@@ -577,18 +595,20 @@ export async function processCountyData(context: any, metadata: any, cid: string
       continue;
     }
     if (result.type === 'parcel') {
-      const parcelEntity = createParcelEntity(result.cid, result.data, propertyEntityId);
+      const parcelEntity = createParcelEntity(result.cid, result.data, effectiveDataSubmissionId);
       context.Parcel.set(parcelEntity);
     } else if (result.type === 'geometry') {
-      const geometryEntity = createGeometryEntity(result.cid, result.data, propertyEntityId, result.parcelCid);
+      const geometryEntity = createGeometryEntity(result.cid, result.data, effectiveDataSubmissionId, result.parcelCid);
       context.Geometry.set(geometryEntity);
     }
   }
 
   // PHASE 4: address_has_geometry relationships - process geometry entities linked to address
-  const addressGeometryCids = Array.isArray(metadata.relationships?.address_has_geometry)
-    ? metadata.relationships.address_has_geometry
-    : [];
+  const addressGeometryRaw = metadata.relationships?.address_has_geometry;
+  const addressGeometryCids = Array.isArray(addressGeometryRaw)
+    ? addressGeometryRaw
+    : (addressGeometryRaw && typeof addressGeometryRaw === 'object' ? [addressGeometryRaw] : []);
+
   const phase4RelPromises: any[] = [];
 
   for (const geometryRef of addressGeometryCids) {
@@ -645,15 +665,17 @@ export async function processCountyData(context: any, metadata: any, cid: string
       continue;
     }
     if (result.type === 'address_geometry') {
-      const geometryEntity = createGeometryEntity(result.cid, result.data, propertyEntityId, undefined, result.addressCid);
+      const geometryEntity = createGeometryEntity(result.cid, result.data, effectiveDataSubmissionId, undefined, result.addressCid);
       context.Geometry.set(geometryEntity);
     }
   }
 
   // PHASE 5: layout_has_geometry relationships - process layout and geometry entities
-  const layoutGeometryCids = Array.isArray(metadata.relationships?.layout_has_geometry)
-    ? metadata.relationships.layout_has_geometry
-    : [];
+  const layoutGeometryRaw = metadata.relationships?.layout_has_geometry;
+  const layoutGeometryCids = Array.isArray(layoutGeometryRaw)
+    ? layoutGeometryRaw
+    : (layoutGeometryRaw && typeof layoutGeometryRaw === 'object' ? [layoutGeometryRaw] : []);
+
   const phase5RelPromises: any[] = [];
 
   for (const geometryRef of layoutGeometryCids) {
@@ -726,10 +748,10 @@ export async function processCountyData(context: any, metadata: any, cid: string
       continue;
     }
     if (result.type === 'layout') {
-      const layoutEntity = createLayoutEntity(result.cid, result.data, propertyEntityId);
+      const layoutEntity = createLayoutEntity(result.cid, result.data, effectiveDataSubmissionId);
       context.Layout.set(layoutEntity);
     } else if (result.type === 'layout_geometry') {
-      const geometryEntity = createGeometryEntity(result.cid, result.data, propertyEntityId, undefined, undefined, result.layoutCid);
+      const geometryEntity = createGeometryEntity(result.cid, result.data, effectiveDataSubmissionId, undefined, undefined, result.layoutCid);
       context.Geometry.set(geometryEntity);
     }
   }
