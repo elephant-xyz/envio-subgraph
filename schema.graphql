@@ -98,6 +98,7 @@ type Tax {
 type Parcel {
   id: ID!
   parcel_identifier: String!
+  data_submission_id: String!
   geometry: [Geometry!]! @derivedFrom(field: "parcel_id")
 }
 
@@ -144,6 +145,7 @@ type Layout {
   total_area_sq_ft: Int
   area_under_air_sq_ft: Int
   adjustable_area_sq_ft: Int
+  data_submission_id: String!
   geometry: [Geometry!]! @derivedFrom(field: "layout_id")
 }
 
@@ -155,6 +157,7 @@ type Geometry {
   parcel_id: String
   address_id: String
   layout_id: String
+  data_submission_id: String!
 }
 
 
@@ -177,4 +180,7 @@ type DataSubmittedWithLabel {
   ipfs: Ipfs
   sales_history: [SalesHistory!]! @derivedFrom(field: "property_id")
   tax: [Tax!]! @derivedFrom(field: "property_id")
+  parcels: [Parcel!]! @derivedFrom(field: "data_submission_id")
+  layouts: [Layout!]! @derivedFrom(field: "data_submission_id")
+  geometries: [Geometry!]! @derivedFrom(field: "data_submission_id")
 }

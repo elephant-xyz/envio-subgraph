@@ -129,10 +129,11 @@ export function createTaxEntity(taxId: string, taxData: any, propertyId: string)
 }
 
 // Helper to create Parcel entity
-export function createParcelEntity(parcelId: string, parcelData: any): Parcel {
+export function createParcelEntity(parcelId: string, parcelData: any, dataSubmissionId: string): Parcel {
   return {
     id: parcelId,
-    parcel_identifier: parcelData.parcel_identifier
+    parcel_identifier: parcelData.parcel_identifier,
+    data_submission_id: dataSubmissionId
   };
 }
 
@@ -140,6 +141,7 @@ export function createParcelEntity(parcelId: string, parcelData: any): Parcel {
 export function createGeometryEntity(
   geometryId: string,
   geometryData: any,
+  dataSubmissionId: string,
   parcelId?: string,
   addressId?: string,
   layoutId?: string
@@ -161,12 +163,13 @@ export function createGeometryEntity(
     polygon: polygonJson,
     parcel_id: parcelId || undefined,
     address_id: addressId || undefined,
-    layout_id: layoutId || undefined
+    layout_id: layoutId || undefined,
+    data_submission_id: dataSubmissionId
   };
 }
 
 // Helper to create Layout entity
-export function createLayoutEntity(layoutId: string, layoutData: any): Layout {
+export function createLayoutEntity(layoutId: string, layoutData: any, dataSubmissionId: string): Layout {
   return {
     id: layoutId,
     space_type: layoutData.space_type || undefined,
@@ -210,6 +213,7 @@ export function createLayoutEntity(layoutId: string, layoutData: any): Layout {
     total_area_sq_ft: layoutData.total_area_sq_ft || undefined,
     area_under_air_sq_ft: layoutData.area_under_air_sq_ft || undefined,
     adjustable_area_sq_ft: layoutData.adjustable_area_sq_ft || undefined,
+    data_submission_id: dataSubmissionId
   };
 }
 
@@ -498,7 +502,9 @@ export async function processCountyData(context: any, metadata: any, cid: string
   }
 
   // PHASE 3: parcel_has_geometry relationships - process parcel and geometry entities
-  const parcelGeometryCids = metadata.relationships?.parcel_has_geometry || [];
+  const parcelGeometryCids = Array.isArray(metadata.relationships?.parcel_has_geometry)
+    ? metadata.relationships.parcel_has_geometry
+    : [];
   const phase3RelPromises: any[] = [];
 
   for (const geometryRef of parcelGeometryCids) {
@@ -571,16 +577,18 @@ export async function processCountyData(context: any, metadata: any, cid: string
       continue;
     }
     if (result.type === 'parcel') {
-      const parcelEntity = createParcelEntity(result.cid, result.data);
+      const parcelEntity = createParcelEntity(result.cid, result.data, propertyEntityId);
       context.Parcel.set(parcelEntity);
     } else if (result.type === 'geometry') {
-      const geometryEntity = createGeometryEntity(result.cid, result.data, result.parcelCid);
+      const geometryEntity = createGeometryEntity(result.cid, result.data, propertyEntityId, result.parcelCid);
       context.Geometry.set(geometryEntity);
     }
   }
 
   // PHASE 4: address_has_geometry relationships - process geometry entities linked to address
-  const addressGeometryCids = metadata.relationships?.address_has_geometry || [];
+  const addressGeometryCids = Array.isArray(metadata.relationships?.address_has_geometry)
+    ? metadata.relationships.address_has_geometry
+    : [];
   const phase4RelPromises: any[] = [];
 
   for (const geometryRef of addressGeometryCids) {
@@ -637,13 +645,15 @@ export async function processCountyData(context: any, metadata: any, cid: string
       continue;
     }
     if (result.type === 'address_geometry') {
-      const geometryEntity = createGeometryEntity(result.cid, result.data, undefined, result.addressCid);
+      const geometryEntity = createGeometryEntity(result.cid, result.data, propertyEntityId, undefined, result.addressCid);
       context.Geometry.set(geometryEntity);
     }
   }
 
   // PHASE 5: layout_has_geometry relationships - process layout and geometry entities
-  const layoutGeometryCids = metadata.relationships?.layout_has_geometry || [];
+  const layoutGeometryCids = Array.isArray(metadata.relationships?.layout_has_geometry)
+    ? metadata.relationships.layout_has_geometry
+    : [];
   const phase5RelPromises: any[] = [];
 
   for (const geometryRef of layoutGeometryCids) {
@@ -716,10 +726,10 @@ export async function processCountyData(context: any, metadata: any, cid: string
       continue;
     }
     if (result.type === 'layout') {
-      const layoutEntity = createLayoutEntity(result.cid, result.data);
+      const layoutEntity = createLayoutEntity(result.cid, result.data, propertyEntityId);
       context.Layout.set(layoutEntity);
     } else if (result.type === 'layout_geometry') {
-      const geometryEntity = createGeometryEntity(result.cid, result.data, undefined, undefined, result.layoutCid);
+      const geometryEntity = createGeometryEntity(result.cid, result.data, propertyEntityId, undefined, undefined, result.layoutCid);
       context.Geometry.set(geometryEntity);
     }
   }
