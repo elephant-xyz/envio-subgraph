@@ -284,7 +284,7 @@ export const deedSchema = S.schema({
 // Parcel Data Schema
 export const parcelSchema = S.schema({
   parcel_identifier: S.string,
-});
+}); 
 
 // Polygon Point Schema
 export const polygonPointSchema = S.schema({
