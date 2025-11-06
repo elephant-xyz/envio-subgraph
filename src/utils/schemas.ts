@@ -137,6 +137,7 @@ export const addressSchema = S.schema({
   street_suffix_type: S.optional(S.string),
   township: S.optional(S.string),
   unit_identifier: S.optional(S.string),
+  unnormalized_address: S.optional(S.string),
 });
 
 // Property Data Schema
