@@ -415,6 +415,7 @@ export const getAddressData = configs.address ? experimental_createEffect(
                 street_suffix_type: data.street_suffix_type || undefined,
                 township: data.township || undefined,
                 unit_identifier: data.unit_identifier || undefined,
+                unnormalized_address: data.unnormalized_address || undefined,
             })
         );
     }
