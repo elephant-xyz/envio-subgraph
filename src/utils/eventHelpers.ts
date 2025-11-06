@@ -79,7 +79,8 @@ export function createAddressEntity(addressId: string, addressData: any): Addres
     street_number: addressData.street_number || undefined,
     street_suffix: addressData.street_suffix_type || undefined,
     unit_identifier: addressData.unit_identifier || undefined,
-    township: addressData.township || undefined
+    township: addressData.township || undefined,
+    unnormalized_address: addressData.unnormalized_address || undefined
   };
 }
 

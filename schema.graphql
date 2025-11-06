@@ -41,6 +41,7 @@ type Address {
   street_suffix: String
   unit_identifier: String
   township: String
+  unnormalized_address: String
   geometry: [Geometry!]! @derivedFrom(field: "address_id")
 }
 
